@@ -26,7 +26,7 @@ const modules=[
 ];
 const money=v=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(v);
 function getInventory(){try{const d=JSON.parse(localStorage.getItem('gstdesk-inventory-v1')||'null');if(!d||!Array.isArray(d.products)||!Array.isArray(d.movements))return {products:0,units:0,value:0};const ids=new Map(d.products.map(p=>[p.id,p]));let units=0,value=0;for(const m of d.movements){if(!ids.has(m.productId)||!Number.isSafeInteger(m.delta))continue;units+=m.delta;value+=m.delta*(Number(ids.get(m.productId).costPaise)||0)/100}return {products:d.products.length,units,value}}catch{return {products:0,units:0,value:0}}}
-function open(id){const b=document.querySelector('nav.tabs button[data-tab="'+id+'"]');if(b)b.click()}
+function open(id){const b=document.querySelector('nav.tabs button[data-tab=\"'+id+'\"]');if(b)b.click()}
 function App(){
 const [inventory,setInventory]=React.useState(getInventory);
 const [query,setQuery]=React.useState('');
