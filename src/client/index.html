@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Order Intake · GST Desk</title>
+<link rel="stylesheet" href="/src/client/intake.css">
+<script type="module" src="/src/client/intake.js"></script>
+<header><a href="/">GST Desk</a><span>Local development preview</span></header>
+<main>
+  <h1>Order Intake &amp; Document Vault</h1>
+  <p class="notice">Local-only storage. Encrypted files stay in this browser and may be cleared. Keep encrypted downloads and your passphrase safely; a lost passphrase cannot be recovered. Cloud sync and accounting distribution are not connected.</p>
+  <ol aria-label="Intake stages"><li>Upload</li><li>Manual review</li><li>Encrypted local save</li></ol>
+  <section aria-labelledby="upload-heading">
+    <h2 id="upload-heading">Upload a PDF</h2>
+    <form id="upload-form">
+      <label for="document">Original PDF (maximum 10 MB)</label>
+      <input id="document" type="file" accept="application/pdf,.pdf" required>
+      <label for="passphrase">Vault passphrase (at least 12 characters)</label>
+      <input id="passphrase" type="password" minlength="12" maxlength="1024" autocomplete="off" required aria-describedby="passphrase-help">
+      <p id="passphrase-help">Use the same passphrase to reopen this file. This preview never saves your passphrase.</p>
+      <button id="save" type="submit">Encrypt &amp; save original</button>
+    </form>
+    <p id="status" role="status" aria-live="polite">Choose a document to begin. Automatic PDF extraction is not yet implemented.</p>
+  </section>
+  <section aria-labelledby="vault-heading">
+    <h2 id="vault-heading">Reopen a saved original</h2>
+    <label for="document-id">Document fingerprint (SHA-256)</label>
+    <input id="document-id" type="text" pattern="[a-f0-9]{64}" maxlength="64" spellcheck="false" autocomplete="off">
+    <p>Copy the fingerprint after saving. The searchable vault index is not yet implemented.</p>
+    <div class="actions"><button id="reopen" type="button">Unlock &amp; verify</button><button id="download" type="button" disabled>Download original</button><button id="backup" type="button" disabled>Export encrypted original</button></div>
+    <p id="integrity" role="status"></p>
+    <pre id="metadata"></pre>
+  </section>
+  <section aria-labelledby="restore-heading">
+    <h2 id="restore-heading">Inspect an encrypted original export</h2>
+    <label for="archive">Encrypted JSON export (maximum 24 MB)</label>
+    <input id="archive" type="file" accept="application/json,.json">
+    <button id="inspect" type="button">Decrypt &amp; inspect</button>
+    <p id="restore-status" role="status"></p>
+    <p>Inspection does not import or alter records. Full backup restore and review editing remain incomplete.</p>
+  </section>
+</main>
+</html>
