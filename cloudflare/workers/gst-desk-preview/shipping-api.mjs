@@ -133,6 +133,45 @@ export async function shippingApi(request,env,who){
       return response({saved:true,suborderId:one[1],awb,status:'not_checked',automaticallyChecked:false});
     }catch(e){return response({error:/UNIQUE/i.test(String(e))?'awb_already_assigned':'awb_save_failed'},409)}
   }
+  if(path==='/api/shipping/labels/import'&&request.method==='POST'){
+    if(!hasWriteHeaders(request))return response({error:'invalid_request_origin'},403);
+    if(Number(request.headers.get('content-length')||0)>100000)return response({error:'payload_too_large'},413);
+    let input;try{input=await request.json()}catch{return response({error:'invalid_json'},400)}
+    if(!Array.isArray(input?.items)||input.items.length<1||input.items.length>50)
+      return response({error:'invalid_label_batch'},400);
+    const orders=new Set(),awbs=new Set(),results=[];
+    // Import only extracted identifiers and evidence hashes. Never upload/store PDF bytes.
+    for(const item of input.items){
+      const id=String(item.suborderId||''),inv=String(item.invoiceNo||''),awb=String(item.awb||'').toUpperCase();
+      const hash=String(item.sourceSha256||''),page=Number(item.page);
+      if(!digits.test(id)||!/^87[a-z0-9]{3,30}$/i.test(inv)||!awbPattern.test(awb)||
+         !/^[a-f0-9]{64}$/.test(hash)||!Number.isSafeInteger(page)||page<1||page>10000)
+        return response({error:'invalid_label_evidence'},400);
+      if(orders.has(id)||awbs.has(awb))return response({error:'ambiguous_duplicate_label_evidence'},409);
+      orders.add(id);awbs.add(awb);
+    }
+    for(const item of input.items){
+      const id=String(item.suborderId),inv=String(item.invoiceNo),awb=String(item.awb).toUpperCase();
+      // Verify BOTH order ID and invoice ID, not AWB alone.
+      const original=await env.DB.prepare(
+        'SELECT s.awb,s.status,i.invoice_no FROM gstdesk_shipments s JOIN gstdesk_meesho_invoices i ON i.business_id=s.business_id AND i.invoice_no=s.invoice_no WHERE s.business_id=? AND s.suborder_id=? AND s.invoice_no=? AND i.document_type=? LIMIT 1'
+      ).bind(who.businessId,id,inv,'tax-invoice').first();
+      if(!original){results.push({suborderId:id,invoiceNo:inv,awb,outcome:'not_matched'});continue}
+      if(original.awb&&original.awb!==awb){results.push({suborderId:id,invoiceNo:inv,awb,outcome:'conflicting_existing_awb'});continue}
+      if(original.awb===awb){results.push({suborderId:id,invoiceNo:inv,awb,outcome:'already_saved'});continue}
+      if(original.status==='delivered'){results.push({suborderId:id,invoiceNo:inv,awb,outcome:'delivered_requires_review'});continue}
+      try{
+        const save=await env.DB.prepare(
+          "UPDATE gstdesk_shipments SET carrier='valmo',awb=?,awb_source='user_shipping_label_pdf_text',awb_evidence_sha256=?,awb_set_at=COALESCE(awb_set_at,CURRENT_TIMESTAMP),status=CASE WHEN status='awaiting_awb' THEN 'not_checked' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE business_id=? AND suborder_id=? AND invoice_no=? AND awb IS NULL AND status!='delivered'"
+        ).bind(awb,item.sourceSha256,who.businessId,id,inv).run();
+        results.push({suborderId:id,invoiceNo:inv,awb,outcome:save.meta?.changes===1?'saved':'conflict_retry'});
+      }catch{
+        results.push({suborderId:id,invoiceNo:inv,awb,outcome:'duplicate_or_database_conflict'});
+      }
+    }
+    return response({manualImport:true,carrierStatusChecked:false,documentsStored:false,
+      saved:results.filter(r=>r.outcome==='saved').length,results});
+  }
   if(path==='/api/shipping/check'&&request.method==='POST'){
     if(!hasWriteHeaders(request))return response({error:'invalid_request_origin'},403);
     if(Number(request.headers.get('content-length')||0)>512)return response({error:'payload_too_large'},413);
