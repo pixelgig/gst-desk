@@ -5,23 +5,24 @@ const el=(tag,cls,value)=>{const e=document.createElement(tag);if(cls)e.classNam
 const money=x=>'₹'+(Number(x||0)/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 
 const iconPaths={
- document:'<path d="M6 3h9l4 4v14H6zM15 3v5h5M9 13h7M9 17h5"/>',
- credit:'<path d="M5 9a7 7 0 1 1 1.5 8M4 4v6h6M9 14h6"/>',
- wallet:'<rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 9h18M15 14h4"/>',
- shield:'<path d="M12 2l8 3v6c0 5-3.5 8-8 11-4.5-3-8-6-8-11V5zM8 12l3 3 5-6"/>',
- chart:'<path d="M4 21V7M4 21h17M9 17v-5M14 17V8M19 17V4"/>',
- cloud:'<path d="M7 18H6a4 4 0 1 1 .7-7.9A6 6 0 0 1 18.3 11 3.5 3.5 0 1 1 18 18H7z"/>',
- pen:'<path d="M6 3h10v5M6 3v18h12v-6M9 14l8-8 3 3-8 8-4 1z"/>',
- archive:'<path d="M4 4h16v5H4zM6 9v12h12V9M10 14h4"/>',
- calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M14 14h3"/>'
+ document:'M6 3h9l4 4v14H6z M15 3v5h5 M9 13h7 M9 17h5',
+ credit:'M5 9a7 7 0 1 1 1.5 8 M4 4v6h6 M9 14h6',
+ wallet:'M6 5h12a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z M3 9h18 M15 14h4',
+ shield:'M12 2l8 3v6c0 5-3.5 8-8 11-4.5-3-8-6-8-11V5z M8 12l3 3 5-6',
+ chart:'M4 4v17h17 M9 17v-5 M14 17V8 M19 17V4',
+ cloud:'M7 18H6a4 4 0 1 1 .7-7.9A6 6 0 0 1 18.3 11 3.5 3.5 0 1 1 18 18H7z',
+ pen:'M6 3h10v5 M6 3v18h12v-6 M9 14l8-8 3 3-8 8-4 1z',
+ archive:'M4 4h16v5H4z M6 9v12h12V9 M10 14h4',
+ calendar:'M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z M7 3v4 M17 3v4 M3 10h18 M8 14h3 M14 14h3'
 };
 const glyph=kind=>{
  const wrapper=el('span','nv-stat-icon');
  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
  svg.setAttribute('viewBox','0 0 24 24');
  svg.setAttribute('aria-hidden','true');
- svg.innerHTML=iconPaths[kind]||iconPaths.document;
- wrapper.append(svg);return wrapper;
+ const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+ path.setAttribute('d',iconPaths[kind]||iconPaths.document);
+ svg.append(path);wrapper.append(svg);return wrapper;
 };
 
 const month=p=>/^(0[1-9]|1[0-2])20\d{2}$/.test(p)?new Intl.DateTimeFormat('en-IN',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(Date.UTC(Number(p.slice(2)),Number(p.slice(0,2))-1,1))):String(p||'');
