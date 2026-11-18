@@ -14,7 +14,7 @@ const normalizeInvoice=row=>{
   return {
     invoiceNo:row.invoice_no,suborderId:row.suborder_id,
     documentType:row.document_type,orderDate:row.order_date,documentDate:row.document_date,
-    hsn:row.hsn,period:row.source_period,
+    hsn:row.hsn,period:row.document_date.slice(5,7)+row.document_date.slice(0,4),
     totalPaise:num(row.document_total_paise),taxPaise:tax==null?null:num(tax),
     taxablePaise:d.taxablePaise??(tax==null?null:num(row.document_total_paise)-num(tax)),
     productDescription:String(d.productDescription||'').slice(0,500),
@@ -35,7 +35,7 @@ export async function handleOverviewApi(request,env,who){
   try{
     if(path==='/api/overview'){
       const [monthly,filings,reportRows,counts,recent]=await Promise.all([
-        rowList(env.DB.prepare("SELECT source_period AS period,COUNT(*) AS documents,SUM(CASE WHEN document_type='tax-invoice' THEN 1 ELSE 0 END) AS invoices,SUM(CASE WHEN document_type='credit-note' THEN 1 ELSE 0 END) AS credit_notes,SUM(CASE WHEN document_type='tax-invoice' THEN document_total_paise ELSE 0 END) AS invoice_paise,SUM(CASE WHEN document_type='credit-note' THEN document_total_paise ELSE 0 END) AS credit_paise FROM gstdesk_meesho_invoices WHERE business_id=? GROUP BY source_period ORDER BY substr(source_period,3,4) DESC,substr(source_period,1,2) DESC").bind(who.businessId)),
+        rowList(env.DB.prepare("SELECT substr(document_date,6,2)||substr(document_date,1,4) AS period,COUNT(*) AS documents,SUM(CASE WHEN document_type='tax-invoice' THEN 1 ELSE 0 END) AS invoices,SUM(CASE WHEN document_type='credit-note' THEN 1 ELSE 0 END) AS credit_notes,SUM(CASE WHEN document_type='tax-invoice' THEN document_total_paise ELSE 0 END) AS invoice_paise,SUM(CASE WHEN document_type='credit-note' THEN document_total_paise ELSE 0 END) AS credit_paise FROM gstdesk_meesho_invoices WHERE business_id=? GROUP BY period ORDER BY substr(period,3,4) DESC,substr(period,1,2) DESC").bind(who.businessId)),
         rowList(env.DB.prepare("SELECT tax_period,return_type,arn,filed_on,taxable_paise,igst_paise,cgst_paise,sgst_paise FROM gstdesk_filed_return_summaries WHERE business_id=? ORDER BY substr(tax_period,3,4) DESC,substr(tax_period,1,2) DESC,return_type").bind(who.businessId)),
         rowList(env.DB.prepare("SELECT period,document_kind,COUNT(*) AS records,SUM(taxable_paise) AS taxable_paise,SUM(tax_paise) AS tax_paise FROM gstdesk_meesho_report_rows WHERE business_id=? GROUP BY period,document_kind").bind(who.businessId)),
         env.DB.prepare("SELECT (SELECT COUNT(*) FROM gstdesk_meesho_invoices WHERE business_id=?) AS invoice_documents,(SELECT COUNT(*) FROM gstdesk_meesho_report_rows WHERE business_id=?) AS marketplace_report_rows,(SELECT COUNT(*) FROM gstdesk_filed_return_summaries WHERE business_id=?) AS filed_return_summaries,(SELECT COUNT(*) FROM gstdesk_source_archives WHERE business_id=?) AS source_archives,(SELECT COUNT(*) FROM gstdesk_invoice_drafts WHERE business_id=? AND deleted_at IS NULL) AS invoice_drafts,(SELECT COUNT(*) FROM gstdesk_browser_state WHERE business_id=?) AS saved_workspace_keys").bind(who.businessId,who.businessId,who.businessId,who.businessId,who.businessId,who.businessId).first(),
@@ -56,8 +56,8 @@ export async function handleOverviewApi(request,env,who){
       if(!Number.isSafeInteger(page)||page<1||page>1000)return json({error:'invalid_page'},400);
       const size=30,offset=(page-1)*size;
       const [records,count]=await Promise.all([
-        rowList(env.DB.prepare('SELECT '+invoiceCols+' FROM gstdesk_meesho_invoices WHERE business_id=? AND source_period=? ORDER BY document_date DESC,invoice_no DESC LIMIT ? OFFSET ?').bind(who.businessId,period,size,offset)),
-        env.DB.prepare('SELECT COUNT(*) AS total FROM gstdesk_meesho_invoices WHERE business_id=? AND source_period=?').bind(who.businessId,period).first()
+        rowList(env.DB.prepare('SELECT '+invoiceCols+' FROM gstdesk_meesho_invoices WHERE business_id=? AND substr(document_date,6,2)||substr(document_date,1,4)=? ORDER BY document_date DESC,invoice_no DESC LIMIT ? OFFSET ?').bind(who.businessId,period,size,offset)),
+        env.DB.prepare('SELECT COUNT(*) AS total FROM gstdesk_meesho_invoices WHERE business_id=? AND substr(document_date,6,2)||substr(document_date,1,4)=?').bind(who.businessId,period).first()
       ]);
       return json({period,page,pageSize:size,total:num(count?.total),hasMore:offset+records.length<num(count?.total),items:records.map(normalizeInvoice)});
     }
