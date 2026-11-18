@@ -22,6 +22,16 @@ const normalizeInvoice=row=>{
     taxComponentsPaise:d.taxComponentsPaise||d.pdfPrintedTaxComponentsPaise||null,
     taxSource:d.pdfPrintedTaxTotalPaise!=null?'invoice_pdf_total_row':(d.invoiceTaxPaise!=null?'invoice_pdf_parsed':'invoice_components_only'),
     taxBreakdownDifferencePaise:breakdownTotal!=null&&tax!=null?num(tax)-breakdownTotal:null,
+    shippingLabelInvoice:d.shippingLabelInvoice ? {
+      seller:'NIDHI',sku:d.shippingLabelInvoice.sku||null,
+      size:d.shippingLabelInvoice.size||null,quantity:Number(d.shippingLabelInvoice.qty||0),
+      color:d.shippingLabelInvoice.color||null,
+      product:d.shippingLabelInvoice.product||null,
+      otherCharges:d.shippingLabelInvoice.otherCharges||null,
+      labelPrintedGSTPaise:d.shippingLabelInvoice.labelPrintedGSTPaise??null,
+      taxMismatchWithStandaloneInvoice:Number(d.shippingLabelInvoice.labelPrintedGSTPaise)!==Number(tax),
+      source:'seller_verified_shipping_label_tax_invoice'
+    }:null,
     originalInvoiceNo:d.originalInvoiceNo||null,
     placeOfSupply:d.placeOfSupply||null,placeOfSupplyCode:d.placeOfSupplyCode||null,
     hasOtherCharges:d.hasOtherCharges??null,
