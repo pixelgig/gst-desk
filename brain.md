@@ -390,3 +390,175 @@ Line numbers are for the **19 November 2026 source snapshot**. The Worker’s gi
 - Do not replace revision control with last-write-wins; recover failed saves before asking owner to clear browser data.
 
 ---
+
+## 7. Data model, lineage and accounting invariants
+
+### 7.1 Existing D1 database vs browser legacy state
+
+**gst-desk-db** is an existing Cloudflare D1 database. In the current production code, historical imported invoices, report rows, tax filings and shipping records are read from D1. Separately, **gstdesk_browser_state** stores selected legacy workspace state as opaque JSON/text values with revision numbers. An opaque saved state object is **not** the same as a normalized cross-workspace business transaction table.
+
+The SQL schema snapshot includes user/business/membership tables and legacy tables named **transactions**, **import_batches** and **return_workings**. Do not assume old browser workspaces have automatically been migrated into those SQL tables just because the tables exist. Determine the actual write path for the intended tool.
+
+### 7.2 Table-by-table contract
+
+| Table | What it represents | Keys / invariants / caveats |
+| --- | --- | --- |
+| **gstdesk_users** | Identified application users. | Role and status; owner must be active. Do not expose the owner email in publicly committed troubleshooting data. |
+| **gstdesk_businesses** | Registered business identity. | Business ID + legal name/GSTIN; owner reference. Never use arbitrary client-supplied business_id as authority. |
+| **gstdesk_memberships** | User-to-business permissions. | Composite business/user key, role owner/accountant/viewer. Current production authorize requires **active owner**. |
+| **gstdesk_audit_events** | Auditable activities. | Structure exists; do not assume all old UI actions write complete audit records. |
+| **gstdesk_invoice_drafts** | Draft invoice payloads and revision metadata. | Business-scoped draft_ref, revision, soft deleted_at; not the same as a PDF tax invoice or filed return. |
+| **gstdesk_browser_state** | Cloud-backed compatibility store for old workspace keys. | Composite business_id/storage_key; max **512 KB** text; revision increments; 409 conflict instead of silent overwrite. |
+| **gstdesk_filed_return_summaries** | Already-filed GSTR-1/GSTR-3B PDF-derived summary. | Separate monthly return types; filed_on, ARN, taxable and tax component paise. Not a calculation from current UI. |
+| **gstdesk_meesho_report_rows** | Original Meesho marketplace GST report rows, sale/return. | Source file SHA + suborder + kind idempotency; source decimals **and** paise retained. Distinct from invoice PDFs. |
+| **gstdesk_meesho_invoices** | Parsed original tax invoice / credit note metadata. | Composite business + invoice_no; suborder, order_date, document_date, HSN, PDF SHA, ZIP SHA, source_period, details_json, total paise. Not necessarily delivered. |
+| **gstdesk_source_archives** | Imported original ZIP manifests. | Business and SHA are unique; names, period, count and import time stored; **not source archive binaries**. |
+| **gstdesk_shipments** | One shipment candidate per original tax invoice and its evidence/status. | Business/suborder primary key, unique business/invoice and business/AWB; delivered timestamps require verified carrier evidence. May start awaiting_awb. |
+| **gstdesk_shipping_labels** | Parsed shipping label identifiers and source proofs. | Business/suborder primary key, unique business/AWB, courier, invoice reference, PDF/ZIP hashes, source page, duplicate copies. No buyer details. |
+| **transactions** | Earlier generic accounting row schema. | Do not confuse with imported Meesho invoice or settled payout. |
+| **import_batches** | Earlier import manifest schema. | Not automatically equivalent to gstdesk_source_archives. |
+| **return_workings** | Earlier draft return working records. | Not the authoritative filed-return summaries. |
+
+**Read code and PRAGMA before introducing a new table**. If normalized product/order/settlement tables are missing, propose additive migrations, source-of-truth decisions and a rollback strategy. Do not rename/drop existing D1 tables as part of a dashboard enhancement.
+
+### 7.3 Core tax/accounting facts that must never be merged
+
+- **Meesho order creation timestamp**: when an order was actually placed (if reliably available).
+- **Meesho report row**: taxable/tax reported by marketplace export; sale/return type.
+- **Tax invoice**: seller-issued invoice number, document date, original taxable/tax/total from PDF; may refer to earlier order date.
+- **Credit note**: reversal document, with own issue date and original invoice reference if available. Do not treat as new sale.
+- **GST filed return**: immutable reported government filing/ARN data, potentially differing by rounding or corrections from imported marketplace maths.
+- **Shipping label**: verifies seller/order/AWB and an invoice printed on a label, not courier status.
+- **Shipment status**: can be unknown, awaiting AWB, not checked, verified in transit, out for delivery, delivered, returned, failed or needs review.
+- **Owner-confirmed delivery**: owner assertion; separate from carrier delivery evidence, **no invented actual timestamp**.
+- **Settlement/payout**: money marketplace actually transferred, net of charges/holds/refunds, requiring a statement or payment evidence. Not implied by invoice total.
+- **Cost and profit**: require purchase cost, fees, packaging, shipping charges, refunds, returns and actual cash flows. Cannot derive profit from gross invoice value alone.
+- **Inventory**: physical sellable units, reserved stock, returns/damage, sales depletion and movement audit. Not equivalent to number of invoices.
+- **Input tax credit**: requires a valid eligible tax invoice/compliance evidence; purchases without GST invoice must not create fake ITC.
+
+### 7.4 Currency, dates and rounding
+
+Use integer **paise** for actual monetary amounts. Only convert to rupees in display/export, and preserve original source decimal strings when the source had different precision. Never use JavaScript binary float addition as the final GST reconciliation calculation. Store source printed GST totals and component breakdown separately when they differ.
+
+**Period string:** MMYYYY, exactly six characters. The period parser expects zero-padded month. Example September 2026 = **092026**. Invoice SQL month is derived from ISO **document_date** using month + year. Document source ZIP period remains separate. India timezone is **Asia/Kolkata** for dashboard and carrier confirmed delivery dates. Do not append “IST” twice. For a timezone-free shipping ETA like “Delivery by Sat, 21 Nov”, do not invent the year, the date, or proof of delivery.
+
+**GSTR-1/3B JSON checks** before claiming “prepared and ready for human review” must include correct period, schema, invoice numbers, dates, supply type/place, taxable value, GST components, HSN, cancellations/credit notes, rounding/negative sign and export envelope expected by the current GST portal version. Verify government schemas externally for the actual filing period; never rely solely on old draft logic.
+
+### 7.5 Source evidence, checksum and duplicate strategy
+
+Retain source file/archive **SHA-256**, document names, invoice/suborder identifiers, source page and a human-readable mismatch report. Document hashes identify evidence but are not substitutes for preserving original owner-side files. Repeated import of the same PDF should be a no-op or clearly “already saved”; a different PDF claiming the same AWB/order/invoice must go to **conflict/review**, never overwrite existing verified financial evidence.
+
+Present invoice tax source discrepancies explicitly, e.g., standalone invoice PDF printed GST total versus shipping-label invoice printed GST. Preserve both in audit and require manual reconciliation rather than silently changing filed tax. Do not store a raw shipping PDF, ZIP, receipt containing addresses or full response payload unnecessarily. The source registry and parsed metadata are deliberately narrower than a document vault.
+
+## 8. Protected HTTP API route contracts
+
+### 8.1 Global route ownership
+
+All routes operate on the existing production Worker unless marked **staging-only**. For private APIs, the main Worker calls **authorize(request,env)** first; the business ID comes from validated session configuration and membership, **not** request body or query.
+
+| Method | Route | Ownership | Data/side effects |
+| --- | --- | --- | --- |
+| GET | / | worker.js | Private HTML with D1 seed and fallback UI. |
+| GET | /assets/gst-desk-state.js | worker.js + cloud-state-client | Static browser code only; no customer data in asset response. |
+| GET | /assets/gst-desk-overview.js | worker.js + overview-client | Browser overview code; page also embeds inline copy for speed. |
+| GET | /assets/gst-desk-shipping.js | worker.js + shipping-client | Browser shipping code; page also embeds inline copy. |
+| GET | /api/state | state-api | Business-scoped list of compatibility keys/revisions. |
+| PUT, DELETE | /api/state/{key} | state-api | Revision-aware mutation, same-origin header checks and 512 KB bound. |
+| GET | /api/meesho/summary?period=MMYYYY | state-api | Historical marketplace row totals vs filed return. No live feed. |
+| GET | /api/returns/summary?period=MMYYYY | state-api | Previously filed return rows. |
+| GET | /api/overview | overview-api | D1 month totals, counts, recent invoice metadata and filings. |
+| GET | /api/invoices?period=MMYYYY&page=N | overview-api | 30-entry paginated invoice and credit note list. |
+| GET | /api/invoices/{invoiceNo} | overview-api | One private, normalized invoice + original/label tax metadata. |
+| GET | /api/shipping/summary | shipping-api | Combined D1 shipping and label counts. |
+| GET | /api/shipping/bootstrap?filter=all | shipping-api | One-response saved counts and up to 50 shipment rows; **no courier check**. |
+| GET | /api/shipping/labels/unmatched | shipping-api | Metadata for labels with awaiting_invoice status if such rows exist. |
+| GET | /api/shipping/orders?filter=...&page=N | shipping-api | Paginated shipment rows (50) filtered by status. |
+| GET | /api/shipping/orders/{suborderId} | shipping-api | One private shipment and evidence, no buyer details. |
+| PUT | /api/shipping/orders/{suborderId} | shipping-api | Owner-confirmed manual Valmo AWB from seller label; no carrier query. |
+| POST | /api/shipping/labels/import | shipping-api | Validated, deduplicated seller label metadata/audit import; 1–50 rows. |
+| POST | /api/shipping/check | shipping-api | Manual on-demand Valmo status checks; up to 10 selected eligible rows per request. |
+| GET | /api/valmo/track?tracking_id=VL... | worker.js | Protected direct Valmo proxy with input/payload validation; inspect actual usage and provider reliability before relying on it. |
+| GET | /api/catalogue/meesho?store=https://... | worker.js | Public storefront HTML structured-data discovery with strict Meesho host/path allowlist. **Not seller account sync.** |
+| GET | /api/voice/summary | staging worker.template.js + voice-summary | **Staging/source-only** Alexa read-only summary; separately secured, not part of the production worker.js routing. |
+
+### 8.2 API safety rules
+
+**Authorization** is necessary on every private path even if the request is same-origin. The write request convention uses **Origin** matching the request origin and **X-GST-Desk-Write: 1**; this is extra CSRF resistance, not a substitute for identity validation. Avoid permissive CORS and arbitrary business IDs.
+
+JSON APIs should return no-store, narrow fields, stable errors and HTTP 400/403/404/405/409/413/503 as appropriate. Do not echo secrets or raw SQL errors. Query D1 with bound parameters and business_id predicates everywhere. Avoid GET mutations. A new route should have schema validation, auth, explicit side-effect tests, idempotency where appropriate and an audit strategy.
+
+### 8.3 State write conflict flow
+
+The frontend starts with D1 key/value plus revision. On user edits, it queues a PUT or DELETE with expectedRevision. The D1 SQL only changes a row with the matching revision. A second browser whose revision is stale gets **409 revision_conflict**; it must refresh and reconcile before overwrite. Preserve failed local pending changes via emergency backup and user-visible warnings. Avoid async racing that overwrites a user's second edit with an earlier response.
+
+### 8.4 Valmo status semantics
+
+A Validated Valmo carrier result has an expected tracking ID, recognized success contract and interpretable events. **ORDER_DELIVERED** or a trusted delivered headline still requires a corresponding **explicit dated event** before setting status delivered/actual date. A returned event or “delivery failed” must not be treated as success. Nested current events may refine “On the way” into out-for-delivery. Returned-to-seller wins over generic transit. An invalid response maps to **needs_review** or a per-request error; do not overwrite previously trusted status.
+
+The carrier website endpoint may change or block requests. A timeout and 502/503 are operational conditions, not permission to fake a positive status. Carrier retry belongs behind owner action, not default page load.
+
+### 8.5 Shipping-label import security and limits
+
+Current client performs the following locally:
+1. Owner selects up to **30** input PDF/ZIP files; each selected input max **25 MB**.
+2. Expand ZIP using JSZip; cap PDF entries at **50** per batch.
+3. Reject a single PDF page document over **15 MB**, and a PDF with more than **100 pages**.
+4. Extract page text with PDF.js and call **parsePrintedInvoice** for each page.
+5. Require exact NIVIDHI seller identity, supported courier, one AWB/suborder/invoice, issue date, printed GST and invoice total.
+6. Compute PDF SHA-256; deduplicate identical labels, flag conflicting copies and preview rows/exclusions.
+7. Ask owner to confirm before a **JSON-only** private import request; original file bytes stay in the browser.
+8. Backend verifies seller and invoice data against D1 and rejects unsupported order/AWB/date/amount combinations before mutation.
+9. Preserve existing delivered data, refuse conflicting AWBs and record source GST differences without mutating original filed returns.
+10. Show precise per-row result: saved, already saved, invoice_not_found, mismatch, conflict, or failed. Do not call Valmo during import.
+
+These limits are from **shipping-client.mjs** and **shipping-api.mjs**, not generic browser or PDF.js limits. Keep them aligned in UI wording and tests if increased. There is a security boundary between **local extraction** and **D1 factual validation**; never replace it with “trust the photo/LLM text” for financial records.
+
+## 9. Legacy workspaces: implementation notes and responsibilities
+
+This section is intentionally careful. The embedded HTML/JavaScript provides many usable screens and calculators, but **not all are enterprise-grade end-to-end D1 systems**. Treat manual features, previews and browser-state persistence according to their actual code.
+
+### 9.1 Sales & purchases, Dashboard, GST worksheets and Backup
+
+Legacy transaction objects use a generic accounting model, selected accounting period and manually entered figures. The legacy dashboard totals, profit workbook and tax worksheet may be entirely independent from the D1 historical invoice/Meesho tables. A purchase cost can be useful for profit while still **not** qualifying for ITC. Before connecting a transaction to GSTR returns, establish origin, date, seller invoice, tax eligibility and reversal semantics.
+
+Use the compatibility adapter (**GSTDeskState**) rather than native localStorage for tracked business keys where the existing code expects it. Do not delete browser records before confirming their D1 revisions and second-device visibility. Backups must carry schema version, source, timestamp and a clear **merge vs replace** choice; never one-click restore over live finance records.
+
+### 9.2 Meesho Importer and required two-ZIP return builder
+
+**User-defined core workflow:** Open GST Returns/Meesho Importer → choose Meesho GST ZIP **and** Tax Invoice ZIP → extract both locally → match by correct invoice/suborder/document type/date → reconcile reported GST against original PDFs → show exceptions → produce validated **GSTR-1 JSON** for user-reviewed portal upload.
+
+Existing HTML exposes:
+- “Generate GSTR-1 JSON from two Meesho ZIPs”
+- Meesho ZIP/Excel/PDF Analyzer (Beta)
+- Invoice-level GST / GSTR-1 JSON reconciliation
+- ZIP tax extraction and comparisons
+
+**Do not assert every possible ZIP variant is already supported.** Inspect HTML event handlers, parser error states and current GSTN schema. Regressions must cover the September 12 sales + 1 return fixture, cross-month invoice 87whi2713 and exact line-level GST, rather than simply checking that a JSON file downloads.
+
+A future automated importer should have an **Import Session** object (sources, checksum, importer version, warnings, preview, explicit commit, audit), capable of idempotent re-run. Validate fields from actual source files, not inferred marketplace totals. Never turn a GSTR-1 JSON builder into direct live GSTN filing without official permission and human approval.
+
+### 9.3 GSTR-3B Studio, ITC and Filing Calendar
+
+These prepare worksheets and show estimated tax utilisation, imported GSTR-2B comparisons and filing reminders. They must not mark a return “filed” unless the owner supplies genuine filed evidence such as ARN/date and the return is matched. QRMP filing cadence was discussed for the Oct–Dec 2026 quarter; do not hard-code all businesses/periods to that cadence. Verify applicable return periods, due dates, reversals, RCM, composition/regular status and ITC eligibility independently.
+
+The project’s September filed totals are independently sourced and are useful **benchmark data**, not a template for future quarterly filings. Expenses without valid GST invoices can still appear as cost; don't claim credit.
+
+### 9.4 Settlement & Profit, Orders and Inventory
+
+Profit requires per-product purchase cost, marketplace selling price, discounts, marketplace charges, shipping/logistics fees, packaging, returns/refunds, TCS/TDS (where applicable), actual paid settlements and remaining receivables. **Invoice =/= payment =/= profit.** Keep planned profit estimates distinct from realized settlement.
+
+Order Management can ingest owner-provided reports; it must deduplicate by stable marketplace order/suborder ID and preserve original status timestamps. **Not live Meesho order sync** without authorized data source. Inventory must model stock transactions (buy, reserve, sell, return, damage, correction) rather than extrapolating from invoice count. Untracked stock should be unknown, never assumed zero or sold.
+
+### 9.5 Invoice Studio, GST Lab and Migration Center
+
+Invoice Studio has multi-line invoice drafting, source amounts, preview/print and a draft register with backup validation. Do not confuse browser draft register with **gstdesk_invoice_drafts** unless an API write path is verified. For a new editable document schema, use revision IDs, deterministic lines, total reconciliation, audit record and privacy validation. Never allow duplicate invoice numbers to overwrite an issued invoice.
+
+GST Calculation Lab is a preview/test surface; do not reuse its output as final authority without running tax schema fixtures. Migration Center must make backup scope, owner ID, schema version and irreversible changes obvious. User explicitly wants complete data safety: never auto-replace existing records.
+
+### 9.6 Product Catalogue
+
+Existing catalogue can inspect **public** Meesho storefront HTML structured data from an explicitly provided URL, with an allowlist of permitted Meesho hostnames and constrained public path. It can also support manually entered/imported/exported JSON products. It does **not** authenticate as the seller, list all private catalogue products, create listings in marketplaces or obtain actual procurement costs.
+
+Future Listing AI should use a shared canonical product schema and feed **this catalogue and Inventory**, not create disconnected products and duplicates in an unrelated bot database. Marketplace listing templates differ by current platform category and should be generated from templates supplied/downloaded by the owner, not invented column layouts.
+
+---
