@@ -9,7 +9,7 @@ const who={businessId,email:'owner@example.test'};
 const sampleInvoice={
   invoice_no:'demo100',suborder_id:'demo_order_1',document_type:'tax-invoice',
   order_date:'2026-10-10',document_date:'2026-10-11',hsn:'7117',
-  source_period:'102026',document_total_paise:10400,
+  source_period:'092026',document_total_paise:10400,
   pdf_filename:'demo100.pdf',pdf_sha256:'0'.repeat(64),source_zip_sha256:'1'.repeat(64),
   details_json:JSON.stringify({productDescription:'Synthetic test product',invoiceTaxPaise:300,
     taxablePaise:10100,taxComponentsPaise:{IGST:300},placeOfSupply:'Demo State'})
@@ -49,6 +49,8 @@ test('invoice detail preserves monetary precision and tax breakdown',async()=>{
   const d=await handleOverviewApi(req('/api/invoices/demo100'),{DB:db()},who);
   assert.equal(d.status,200);const x=(await d.json()).invoice;
   assert.equal(x.taxPaise,300);assert.equal(x.taxablePaise,10100);
+  assert.equal(x.period,'102026','group by invoice issue date');
+  assert.equal(x.sourcePeriod,'092026','preserve original import archive month');
   assert.equal(x.deliveryStatus,null);assert.equal(x.originalPdfAvailable,false);
 });
 test('invoice list validates periods and pagination',async()=>{
