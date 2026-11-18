@@ -43,6 +43,12 @@ export async function handleVoiceSummary(request, env) {
     const draft = await env.DB.prepare(
       'SELECT COUNT(*) AS total, MAX(updated_at) AS last_updated FROM gstdesk_invoice_drafts WHERE business_id=? AND deleted_at IS NULL'
     ).bind(env.VOICE_BUSINESS_ID).first();
+    const shipments = await env.DB.prepare(
+      "SELECT COUNT(*) AS known_orders,SUM(CASE WHEN status='delivered' AND delivered_date_ist IS NOT NULL THEN 1 ELSE 0 END) AS verified_delivered,SUM(CASE WHEN status IN ('in_transit','out_for_delivery') THEN 1 ELSE 0 END) AS verified_in_transit,SUM(CASE WHEN awb IS NULL THEN 1 ELSE 0 END) AS awaiting_awb FROM gstdesk_shipments WHERE business_id=?"
+    ).bind(env.VOICE_BUSINESS_ID).first();
+    const lastDelivered = await env.DB.prepare(
+      "SELECT delivered_date_ist FROM gstdesk_shipments WHERE business_id=? AND status='delivered' AND delivered_date_ist IS NOT NULL ORDER BY delivered_at DESC LIMIT 1"
+    ).bind(env.VOICE_BUSINESS_ID).first();
     return json({
       readOnly: true,
       drafts: {
@@ -56,6 +62,15 @@ export async function handleVoiceSummary(request, env) {
         gstPayable: false,
         ordersToday: false,
         pendingDeliveries: false,
+        verifiedDeliveries: true,
+      },
+      delivery: {
+        knownInvoicedOrders: Number(shipments?.known_orders || 0),
+        verifiedDelivered: Number(shipments?.verified_delivered || 0),
+        verifiedInTransit: Number(shipments?.verified_in_transit || 0),
+        awaitingAwb: Number(shipments?.awaiting_awb || 0),
+        lastDeliveredDateIST: lastDelivered?.delivered_date_ist || null,
+        source: 'verified_shipment_records_not_live_order_feed',
       },
       orders: {
         today: null,
