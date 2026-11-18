@@ -170,11 +170,11 @@ The table below is mutable latest-state guidance; details must also appear in th
 | Branch / expected base | `main`; re-fetch HEAD before any new work |
 | Work-in-progress PRs/branches | Not assessed; must check before taking a code task |
 | Uncommitted edits | Unknown outside current GitHub connector session |
-| Last completed task | DOC-001, create `AGENTS.md` |
+| Last completed task | DOC-001, created `AGENTS.md`, corrected Markdown and linked from README |
 | Last verified prod browser | Not verified during this documentation-only task |
 | Open risks/blockers | UI-001 real signed-in mobile check; official order feed absent; AI Listing templates not yet supplied |
 | Next recommended action | Address owner's next explicit request, or prioritize UI-001 and LIST-001 after owner input |
-| Latest ledger checkpoint | DOC-001 below; consult git log for actual creation SHA |
+| Latest ledger checkpoint | EVT-20261119-002; see linked GitHub commits |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -294,3 +294,19 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 ---
 
 **Append subsequent EVT entries directly after this point. Do not erase older entries.**
+
+### EVT-20261119-002 — DOC-001 — Format ledger and advertise AI startup instructions
+
+- **Date/time:** 2026-11-19 IST; exact clock time not independently recorded.
+- **AI identity:** OpenAI / ChatGPT; **model: GPT-6**; context: same owner-requested documentation task.
+- **Trigger:** Complete DOC-001 with correctly rendered Markdown and improve discovery for AI tools that first inspect README.
+- **Work:** SOURCE_DONE; **Delivery:** COMMITTED_ONLY; **Verification:** SOURCE_TESTED (retrieved and checked repository text).
+- **Before:** New AGENTS.md existed; escaped code fences/backticks needed Markdown correction. README linked neither mission control nor project brain.
+- **After:** Repaired Markdown formatting in AGENTS.md; included the initial creation commit; added the AI onboarding, active mission and change history section near the top of README instructing future assistants to read AGENTS.md and brain.md and log every task. Application code, Cloudflare runtime and D1 were not changed.
+- **Files:** `AGENTS.md` (formatting/link), `README.md` (discoverability only).
+- **Git evidence:** [AGENTS.md formatting commit 1dc9257c](https://github.com/pixelgig/gst-desk/commit/1dc9257c77b84554c1a1ea0adde239f6a0a90e1c); [README pointer commit fefbc33a](https://github.com/pixelgig/gst-desk/commit/fefbc33a279f7014dbed71a8a6ef13c9eeb7049b).
+- **Deployment:** NOT_APPLICABLE (documentation only); no Cloudflare deploy.
+- **D1/cost/security:** No database change, no paid resources, no private business data.
+- **Limitations:** Agents still need to actually read and obey these instructions; README discoverability is not technical enforcement.
+- **Next handoff:** Owner's next request; read the complete ledger and [brain.md](./brain.md) before touching source.
+
