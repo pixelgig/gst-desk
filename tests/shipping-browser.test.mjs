@@ -45,6 +45,9 @@ test('Valmo opens only two category cards; individual orders stay hidden until t
  assert.match(panel.textContent,/Total Delivered/);
  assert.match(panel.textContent,/Total In Transit/);
  assert.match(panel.textContent,/Refresh Data/);
+ assert.ok(panel.querySelector('.nv-upload-card'),'Always visible independent PDF/ZIP importer');
+ assert.ok(panel.querySelector('input[type="file"]'),'File upload should remain accessible with categories closed');
+ assert.match(panel.textContent,/Parse, Validate & Save to D1/);
  const cats=[...panel.querySelectorAll('button[data-category]')];
  assert.equal(cats.length,2);
  assert.equal(cats[0].querySelector('.nv-cat-number').textContent,'13');
