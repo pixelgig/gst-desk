@@ -3,6 +3,27 @@ function gstDeskOverviewClient(){
 'use strict';
 const el=(tag,cls,value)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(value!==undefined)e.textContent=String(value);return e};
 const money=x=>'₹'+(Number(x||0)/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+const iconPaths={
+ document:'<path d="M6 3h9l4 4v14H6zM15 3v5h5M9 13h7M9 17h5"/>',
+ credit:'<path d="M5 9a7 7 0 1 1 1.5 8M4 4v6h6M9 14h6"/>',
+ wallet:'<rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 9h18M15 14h4"/>',
+ shield:'<path d="M12 2l8 3v6c0 5-3.5 8-8 11-4.5-3-8-6-8-11V5zM8 12l3 3 5-6"/>',
+ chart:'<path d="M4 21V7M4 21h17M9 17v-5M14 17V8M19 17V4"/>',
+ cloud:'<path d="M7 18H6a4 4 0 1 1 .7-7.9A6 6 0 0 1 18.3 11 3.5 3.5 0 1 1 18 18H7z"/>',
+ pen:'<path d="M6 3h10v5M6 3v18h12v-6M9 14l8-8 3 3-8 8-4 1z"/>',
+ archive:'<path d="M4 4h16v5H4zM6 9v12h12V9M10 14h4"/>',
+ calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M14 14h3"/>'
+};
+const glyph=kind=>{
+ const wrapper=el('span','nv-stat-icon');
+ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+ svg.setAttribute('viewBox','0 0 24 24');
+ svg.setAttribute('aria-hidden','true');
+ svg.innerHTML=iconPaths[kind]||iconPaths.document;
+ wrapper.append(svg);return wrapper;
+};
+
 const month=p=>/^(0[1-9]|1[0-2])20\d{2}$/.test(p)?new Intl.DateTimeFormat('en-IN',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(Date.UTC(Number(p.slice(2)),Number(p.slice(0,2))-1,1))):String(p||'');
 const request=async(url,signal)=>{const r=await fetch(url,{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'},signal});const j=await r.json();if(!r.ok)throw Error(j.error||'Database temporarily unavailable');return j};
 const css=el('style');
@@ -67,8 +88,8 @@ document.getElementById('nv-server-summary')?.remove();title(home,'Business over
 home.append(el('p','nv-hint','Invoice amounts come from historical Meesho ZIPs. These are not current orders, settlements, GST payable, or profit.'));
 const c=d.counts||{},months=d.monthly||[],stats=el('div','nv-stats');
 const choices=[['Tax invoices',months.reduce((n,x)=>n+x.invoices,0),()=>periodView(months[0]?.period||'112026')],['Credit notes',months.reduce((n,x)=>n+x.creditNotes,0),()=>periodView('102026')],['Net imported invoice value',money(months.reduce((n,x)=>n+x.netPaise,0)),()=>periodView(months[0]?.period||'112026')],['Filed GST returns',c.filed_return_summaries||0,()=>returnsView(d.filedReturns?.[0]?.period||'092026')],['Meesho GST report rows',c.marketplace_report_rows||0,()=>goWorkspace('meesho')],['Saved cloud workspaces',c.saved_workspace_keys||0,()=>goWorkspace('dashboard')],['Invoice drafts',c.invoice_drafts||0,()=>goWorkspace('invoice-studio')],['Source ZIP imports',c.source_archives||0,()=>goWorkspace('meesho')]];
-for(const [label,value,action] of choices){const b=el('button','nv-stat');b.type='button';b.append(el('small','',label),el('strong','',value));b.onclick=action;stats.append(b)}home.append(stats);
-const row=el('div','nv-cols'),monthsPanel=el('div','nv-panel'),recent=el('div','nv-panel');monthsPanel.append(el('h3','','Invoices by document month'));const monthly=el('div','nv-months');months.forEach(p=>{const b=el('button','nv-month');b.type='button';b.append(el('span','nv-kicker',month(p.period)),el('strong','',money(p.netPaise)),el('small','',p.invoices+' invoices · '+p.creditNotes+' credit notes'),el('span','nv-green','View month →'));b.onclick=()=>periodView(p.period);monthly.append(b)});monthsPanel.append(monthly,el('p','nv-hint','Includes invoices from other archive months when their actual issue date falls here.'));recent.append(el('h3','','Recently imported documents'));(d.recentInvoices||[]).forEach(x=>recent.append(item(x,x.period)));row.append(monthsPanel,recent);home.append(row);
+for(const [label,value,action] of choices){const b=el('button','nv-stat');b.type='button';const kind=({'Tax invoices':'document','Credit notes':'credit','Net imported invoice value':'wallet','Filed GST returns':'shield','Meesho GST report rows':'chart','Saved cloud workspaces':'cloud','Invoice drafts':'pen','Source ZIP imports':'archive'})[label]||'document';b.append(glyph(kind),el('small','',label),el('strong','',value));b.onclick=action;stats.append(b)}home.append(stats);
+const row=el('div','nv-cols'),monthsPanel=el('div','nv-panel'),recent=el('div','nv-panel');monthsPanel.append(el('h3','','Invoices by document month'));const monthly=el('div','nv-months');months.forEach(p=>{const b=el('button','nv-month');b.type='button';b.append(glyph('calendar'),el('span','nv-kicker',month(p.period)),el('strong','',money(p.netPaise)),el('small','',p.invoices+' invoices · '+p.creditNotes+' credit notes'),el('span','nv-green','View month →'));b.onclick=()=>periodView(p.period);monthly.append(b)});monthsPanel.append(monthly,el('p','nv-hint','Includes invoices from other archive months when their actual issue date falls here.'));recent.append(el('h3','','Recently imported documents'));(d.recentInvoices||[]).forEach(x=>recent.append(item(x,x.period)));row.append(monthsPanel,recent);home.append(row);
 const foot=el('div','nv-cols'),filings=el('div','nv-panel'),extra=el('div','nv-panel');filings.append(el('h3','','Filed GST returns'));for(const p of new Set((d.filedReturns||[]).map(x=>x.period))){const b=el('button','nv-entry');b.type='button';b.append(el('span','',month(p)+' · '+d.filedReturns.filter(x=>x.period===p).map(x=>x.type).join(', ')),el('span','nv-green','View →'));b.onclick=()=>returnsView(p);filings.append(b)}extra.append(el('h3','','Stored records and tools'));for(const [label,count,tab] of [['Meesho report rows',c.marketplace_report_rows||0,'meesho'],['Cloud saved workspaces',c.saved_workspace_keys||0,'dashboard'],['Invoice drafts',c.invoice_drafts||0,'invoice-studio'],['Archive manifests',c.source_archives||0,'meesho']]){const b=el('button','nv-entry');b.type='button';b.append(el('span','',label),el('span','nv-value',count+' →'));b.onclick=()=>goWorkspace(tab);extra.append(b)}foot.append(filings,extra);home.append(foot);
 window.__gstDeskOverviewSnapshot=d;
 window.dispatchEvent(new CustomEvent('gstdesk:overview-loaded',{detail:d}));
