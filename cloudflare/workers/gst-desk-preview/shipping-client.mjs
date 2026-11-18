@@ -47,7 +47,7 @@ function gstDeskShippingClient(){
      ['Known invoiced orders',c.known_orders,'Verified by imported invoices'],
      ['Invoiced this month',c.invoiced_orders_this_month,'Order dates from invoices, not live feed'],
      ['Returns / credit notes',returns,'Recorded reversals; carrier status separate'],
-     ['Delivered',c.verified_delivered,'Carrier-confirmed, with delivery date'],
+     ['Delivered',c.total_delivered??c.verified_delivered,'Carrier-verified + owner-confirmed (dates recorded only when known)'],
      ['In transit',c.verified_in_transit,'Only carrier-confirmed status'],
      ['AWBs verified from labels',c.total_labels||0,'Nividhi orders only'],
      ['Awaiting tracking ID',c.awaiting_awb,'Invoiced orders without labels'],
