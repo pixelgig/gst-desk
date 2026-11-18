@@ -138,9 +138,11 @@ function gstDeskShippingClient(){
    if(!snapshot)rows.replaceChildren(el('p','','Loading records from Cloudflare D1…'));
    try{
      // A user-initiated refresh (or an empty first visit) is the only D1 request.
-     const request=fetch('/api/shipping/bootstrap?filter=all',{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'}});
-     const timeout=new Promise((_,reject)=>setTimeout(()=>reject(Error('Request timed out. Your saved snapshot is still available.')),12000));
-     const response=await Promise.race([request,timeout]);
+     const controller=new AbortController();
+     const timer=setTimeout(()=>controller.abort(),12000);
+     let response;
+     try{response=await fetch('/api/shipping/bootstrap?filter=all',{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'},signal:controller.signal})}
+     finally{clearTimeout(timer)}
      if(!response.ok)throw Error('D1 returned HTTP '+response.status);
      const data=await response.json();
      if(!Array.isArray(data?.items)||!data.counts)throw Error('Unexpected shipping response');
