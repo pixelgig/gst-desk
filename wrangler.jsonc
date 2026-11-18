@@ -2,5 +2,18 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "gst-desk-preview",
   "main": "cloudflare/workers/gst-desk-preview/worker.js",
-  "compatibility_date": "2026-11-16"
+  "compatibility_date": "2026-11-16",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gst-desk-db",
+      "database_id": "c780f319-0653-4a82-a692-5a5342a8d793"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true
+    }
+  }
 }
