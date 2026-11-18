@@ -1,5 +1,19 @@
 # GST Desk / NIVIDHI — Project Brain and AI Handover Manual
 
+## Contents / fast navigation
+
+| Foundation and code | Operations and workflows | Governance and future |
+| --- | --- | --- |
+| [0. Read-first rules](#0-how-an-ai-must-use-this-document) | [7. D1 schema and source truth](#7-data-model-lineage-and-accounting-invariants) | [14. Incident runbooks](#14-troubleshooting-and-incident-runbooks) |
+| [1. NIVIDHI business](#1-business-identity-business-model-and-objectives) | [8. HTTP API routes](#8-protected-http-api-route-contracts) | [15. Roadmap](#15-product-roadmap-with-explicit-delivery-gates) |
+| [2. Project history](#2-historical-evolution-and-decisions) | [9. Legacy workflows](#9-legacy-workspaces-implementation-notes-and-responsibilities) | [16. Test fixtures](#16-regression-fixture-catalogue--what-tests-should-assert) |
+| [3. Technologies and architecture](#3-current-stack-boundaries-and-architecture) | [10. Listing AI, Alexa and automation](#10-planned-integrations-boundaries-and-automation-agenda) | [17. Decisions and source provenance](#17-project-decision-log-and-source-provenance) |
+| [4. Workspaces](#4-the-16-legacy-workspaces-plus-the-modern-homepage) | [11. Feature-to-file map](#11-change-impact-matrix--which-file-to-inspect-first) | [18. Threat and trust model](#18-security-privacy-and-trust-model) |
+| [5. Source files](#5-complete-source-file-directory-and-ownership-map) | [12. Safe tests and deployments](#12-development-testing-and-deployment-protocol) | [19. Target business graph](#19-unified-business-object-graph--target-architecture-not-shipped-database-schema) |
+| [6. Critical code symbols/lines](#6-code-navigation-critical-symbols-selectors-and-fragile-line-locations) | [13. Known gaps](#13-known-limitations-technical-debt-and-important-open-questions) | [20. AI handover prompt](#20-final-ai-handover-contract--prompt) / [21. Maintenance](#21-maintenance-notes-for-future-authors) |
+
+---
+
 > **Mandatory reading for every future AI developer.** This is the canonical *project knowledge and change-safety guide* for the existing NIVIDHI GST Desk project. Read this file **before** proposing an architecture change or editing code. Then inspect the **actual latest source and deployed runtime**; this manual is not executable truth and may lag future commits.
 >
 > **Repository:** https://github.com/pixelgig/gst-desk  
