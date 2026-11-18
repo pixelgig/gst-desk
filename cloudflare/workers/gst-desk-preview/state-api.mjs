@@ -46,6 +46,22 @@ export async function stateApi(request,env,who){
   if(u.pathname==='/api/state'&&request.method==='GET'){
     try{return reply({items:await listState(env,who.businessId),source:'cloudflare-d1'});}catch{return reply({error:'storage_unavailable'},503);}
   }
+  if(u.pathname==='/api/meesho/summary'&&request.method==='GET'){
+    const period=u.searchParams.get('period')||'092026';
+    if(!/^(0[1-9]|1[0-2])20[0-9]{2}$/.test(period))return reply({error:'invalid_period'},400);
+    try{
+      const x=await env.DB.prepare('SELECT document_kind,COUNT(*) AS count,SUM(taxable_paise) AS taxable_paise,SUM(tax_paise) AS tax_paise FROM gstdesk_meesho_report_rows WHERE business_id=? AND period=? GROUP BY document_kind').bind(who.businessId,period).all();
+      const rows=x.results||[];
+      const count=kind=>Number(rows.find(r=>r.document_kind===kind)?.count||0);
+      const sum=(kind,key)=>Number(rows.find(r=>r.document_kind===kind)?.[key]||0);
+      const docs=await env.DB.prepare("SELECT COUNT(*) AS total,SUM(CASE WHEN substr(document_date,1,7)=? THEN 1 ELSE 0 END) AS dated_in_period FROM gstdesk_meesho_invoices WHERE business_id=? AND source_period=?").bind(period.slice(2)+'-'+period.slice(0,2),who.businessId,period).first();
+      const filed=await env.DB.prepare("SELECT taxable_paise,igst_paise,cgst_paise,sgst_paise FROM gstdesk_filed_return_summaries WHERE business_id=? AND tax_period=? AND return_type='GSTR-1'").bind(who.businessId,period).first();
+      const netTaxablePaise=sum('sale','taxable_paise')-sum('return','taxable_paise');
+      const netTaxPaise=sum('sale','tax_paise')-sum('return','tax_paise');
+      const filedTaxPaise=filed?filed.igst_paise+filed.cgst_paise+filed.sgst_paise:null;
+      return reply({period,source:'Meesho historical ZIP imports',liveSync:false,report:{salesRows:count('sale'),returnRows:count('return'),netTaxablePaise,netTaxPaise},invoices:{total:Number(docs?.total||0),datedInPeriod:Number(docs?.dated_in_period||0),crossPeriod:Number(docs?.total||0)-Number(docs?.dated_in_period||0),storedAs:'metadata_and_checksums'},filedGstr1:filed?{netTaxablePaise:filed.taxable_paise,netTaxPaise:filedTaxPaise}:null,roundingDifferencePaise:filed?{taxable:netTaxablePaise-filed.taxable_paise,tax:netTaxPaise-filedTaxPaise}:null});
+    }catch{return reply({error:'meesho_summary_unavailable'},503);}
+  }
   if(u.pathname==='/api/returns/summary'&&request.method==='GET'){
     const period=u.searchParams.get('period')||'092026';
     if(!/^(0[1-9]|1[0-2])20[0-9]{2}$/.test(period))return reply({error:'invalid_period'},400);
