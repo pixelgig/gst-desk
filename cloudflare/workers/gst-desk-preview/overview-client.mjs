@@ -61,7 +61,9 @@ show();detail.replaceChildren();title(detail,month(p)+' · Filed GST returns','F
 try{const data=await request('/api/returns/summary?period='+p);for(const r of data.filedReturns||[]){const box=el('div','nv-panel');box.style.margin='10px 0';box.append(el('h3','',r.return_type));const dl=el('dl');field(dl,'Filed on',r.filed_on);field(dl,'ARN',r.arn);field(dl,'Taxable sales',money(r.taxable_paise));field(dl,'IGST',money(r.igst_paise));field(dl,'CGST',money(r.cgst_paise));field(dl,'SGST',money(r.sgst_paise));box.append(dl);detail.append(box)}if(!data.filedReturns?.length)detail.append(el('p','','No filed return summaries for this period.'))}catch(e){detail.append(el('p','nv-error',e.message))}
 }
 function paint(d){
-overview=d;home.replaceChildren();title(home,'Business overview','All imported financial records and cloud-saved workspace data');
+overview=d;home.replaceChildren();
+// Replace the server-rendered summary only once the interactive overview has data.
+document.getElementById('nv-server-summary')?.remove();title(home,'Business overview','All imported financial records and cloud-saved workspace data');
 home.append(el('p','nv-hint','Invoice amounts come from historical Meesho ZIPs. These are not current orders, settlements, GST payable, or profit.'));
 const c=d.counts||{},months=d.monthly||[],stats=el('div','nv-stats');
 const choices=[['Tax invoices',months.reduce((n,x)=>n+x.invoices,0),()=>periodView(months[0]?.period||'112026')],['Credit notes',months.reduce((n,x)=>n+x.creditNotes,0),()=>periodView('102026')],['Net imported invoice value',money(months.reduce((n,x)=>n+x.netPaise,0)),()=>periodView(months[0]?.period||'112026')],['Filed GST returns',c.filed_return_summaries||0,()=>returnsView(d.filedReturns?.[0]?.period||'092026')],['Meesho GST report rows',c.marketplace_report_rows||0,()=>goWorkspace('meesho')],['Saved cloud workspaces',c.saved_workspace_keys||0,()=>goWorkspace('dashboard')],['Invoice drafts',c.invoice_drafts||0,()=>goWorkspace('invoice-studio')],['Source ZIP imports',c.source_archives||0,()=>goWorkspace('meesho')]];
