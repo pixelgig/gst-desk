@@ -33,3 +33,7 @@ Build the online GST Returns tool: upload Meesho GST ZIP + Tax Invoice ZIP, pars
 The preview Worker is currently a single large deployed script, not the original modular source tree. Future refactoring must preserve existing behavior. Cloudflare deployment settings, routes, secrets, Access policies and production D1 **data** are not stored here. The schema snapshot is not a live database backup.
 
 Do not assume the current source tree can be deployed unchanged until build configuration, routing, bindings, and staging tests have been verified.
+
+## Hindi Alexa integration (in development)
+
+A read-only Hindi voice interface for the **existing GST Desk**, using its D1-backed staging API and an Amazon Alexa Skill. See [setup, privacy limits, and tests](docs/integrations/alexa-hindi.md). The voice feature is not deployed or attached to an Echo yet. Never deploy the sanitized staging snapshot without validating runtime bindings and Access policies.

@@ -1,0 +1,29 @@
+name: GST Desk Hindi Alexa checks
+on:
+  push:
+    paths:
+      - 'cloudflare/workers/gst-desk-api-staging/**'
+      - 'integrations/alexa/**'
+      - '.github/workflows/alexa-hindi.yml'
+  pull_request:
+    paths:
+      - 'cloudflare/workers/gst-desk-api-staging/**'
+      - 'integrations/alexa/**'
+      - '.github/workflows/alexa-hindi.yml'
+permissions:
+  contents: read
+jobs:
+  voice-readonly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          node --check cloudflare/workers/gst-desk-api-staging/worker.template.js
+          node --check cloudflare/workers/gst-desk-api-staging/voice-summary.mjs
+          node --check integrations/alexa/lambda/index.js
+      - name: Run read-only voice API security tests
+        run: node --test integrations/alexa/test/*.test.mjs
