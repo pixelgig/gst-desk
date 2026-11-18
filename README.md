@@ -5,6 +5,10 @@
 **Database:** Cloudflare D1 (`gst-desk-db`)  
 **Source control:** This GitHub repository
 
+## AI onboarding, active mission and change history
+
+**Before working on GST Desk**, every AI coding assistant (Codex, ChatGPT, Gemini or others) should read **[AGENTS.md](./AGENTS.md) first**, then **[brain.md](./brain.md)**, inspect the current source, and update the task board and append-only change journal in AGENTS.md after each task. Record actual provider/model identity, exact before/after changes, tests, Git commit, deployment and verification separately. An AI cannot automatically guarantee another platform loads these instructions; provide both file paths in its task prompt.
+
 ## Migration status
 
 This repository contains **read-only source snapshots** retrieved from the existing Cloudflare account on 2026-11-17. Importing the source did **not** redeploy or modify the live application.
