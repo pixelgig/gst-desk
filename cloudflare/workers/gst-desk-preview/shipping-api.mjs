@@ -43,11 +43,15 @@ export function parseValmoCarrierResult(data,awb){
   if(/returned to seller|return delivered|rto delivered|rto complete/.test(text))status='returned';
   else if(/\bdelivered\b/.test(text)&&!/not delivered|undelivered|delivery failed|returned|return to origin/.test(text))status='delivered';
   else if(/out for delivery/.test(text))status='out_for_delivery';
-  else if(/in transit|shipped|reached.*hub|left.*hub|picked up|dispatched/.test(text))status='in_transit';
+  else if(/on the way|on its way|in transit|shipped|reached.*hub|left.*hub|picked up|dispatched/.test(text))status='in_transit';
   else if(/delivery failed|attempt failed/.test(text))status='delivery_failed';
+  // Some Valmo API versions report ORDER_CONFIRMED as the machine code while
+  // the human-readable main_status.description says 'On the way'.
+  // Never infer transit from the machine code alone; require visible label or a dated shipped/hub event.
+  if(status==='needs_review'&&order.some(e=>e.date&&/\bshipped\b|\b(reached|left)\b.*\bhub\b/i.test(e.label)))status='in_transit';
   let deliveryDate=null;
   if(status==='delivered'){
-    deliveryDate=order.find(e=>/^\s*delivered\b/i.test(e.label) &&
+    deliveryDate=order.find(e=>/\bdelivered\b/i.test(e.label) &&
       !/not delivered|return|failed/i.test(e.label) && e.date)?.date||null;
     if(!deliveryDate)status='needs_review'; // Never claim a precise delivery date without evidence.
   }
@@ -61,7 +65,7 @@ async function checkValmo(awb){
   const upstream=new URL('https://www.valmo.in/api/valmo-web/track-order');
   upstream.searchParams.set('tracking_id',awb);
   upstream.searchParams.set('request_id',String(Date.now()));
-  const r=await fetch(upstream.toString(),{headers:{Accept:'application/json','Referer':'https://www.valmo.in/track'},signal:AbortSignal.timeout(11000)});
+  const r=await fetch(upstream.toString(),{headers:{Accept:'application/json','Referer':'https://www.valmo.in/track/'+encodeURIComponent(awb),'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(11000)});
   if(!r.ok)throw Error('carrier_http_'+r.status);
   const data=await r.json();
   const verified=parseValmoCarrierResult(data,awb);
@@ -87,7 +91,7 @@ const view=record=>{
 };
 const digits=/^[0-9]{15,20}_\d{1,4}$/;
 async function counts(env,who){
- const sql="SELECT COUNT(*) AS known_orders,SUM(CASE WHEN awb IS NULL THEN 1 ELSE 0 END) AS awaiting_awb,SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) AS verified_delivered,SUM(CASE WHEN status IN ('in_transit','out_for_delivery') THEN 1 ELSE 0 END) AS verified_in_transit,SUM(CASE WHEN status='returned' THEN 1 ELSE 0 END) AS carrier_returned,SUM(CASE WHEN awb IS NOT NULL AND carrier='valmo' AND status!='delivered' THEN 1 ELSE 0 END) AS eligible_for_check,SUM(CASE WHEN strftime('%Y-%m',i.order_date)=strftime('%Y-%m',datetime('now','+5 hours','+30 minutes')) THEN 1 ELSE 0 END) AS invoiced_orders_this_month FROM gstdesk_shipments s JOIN gstdesk_meesho_invoices i ON i.business_id=s.business_id AND i.invoice_no=s.invoice_no WHERE s.business_id=?";
+ const sql="SELECT COUNT(*) AS known_orders,SUM(CASE WHEN awb IS NULL THEN 1 ELSE 0 END) AS awaiting_awb,SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) AS verified_delivered,SUM(CASE WHEN status IN ('in_transit','out_for_delivery') THEN 1 ELSE 0 END) AS verified_in_transit,SUM(CASE WHEN status='returned' THEN 1 ELSE 0 END) AS carrier_returned,SUM(CASE WHEN awb IS NOT NULL AND carrier='valmo' AND status NOT IN ('delivered','returned') THEN 1 ELSE 0 END) AS eligible_for_check,SUM(CASE WHEN strftime('%Y-%m',i.order_date)=strftime('%Y-%m',datetime('now','+5 hours','+30 minutes')) THEN 1 ELSE 0 END) AS invoiced_orders_this_month FROM gstdesk_shipments s JOIN gstdesk_meesho_invoices i ON i.business_id=s.business_id AND i.invoice_no=s.invoice_no WHERE s.business_id=?";
  const r=await env.DB.prepare(sql).bind(who.businessId).first();
  return Object.fromEntries(Object.entries(r||{}).map(([k,v])=>[k,Number(v||0)]));
 }
@@ -101,6 +105,28 @@ export async function shippingApi(request,env,who){
     ]);
     return response({source:'D1 and verified manual carrier records',live:false,autoCheck:false,
       counts:{...recordCounts,...Object.fromEntries(Object.entries(labelCounts||{}).map(([k,v])=>[k,Number(v||0)]))}});
+  }
+  // One authenticated request for the page's first paint, rather than
+  // serial summary -> order list fetches. No courier calls on load.
+  if(path==='/api/shipping/bootstrap'&&request.method==='GET'){
+    const filters=new Set(['all','awaiting_awb','pending','delivered','returned']);
+    const filter=u.searchParams.get('filter')||'all';
+    if(!filters.has(filter))return response({error:'invalid_filter'},400);
+    let extra='',params=[who.businessId];
+    if(filter==='awaiting_awb')extra=' AND s.awb IS NULL';
+    else if(filter==='pending')extra=" AND s.awb IS NOT NULL AND s.status NOT IN ('delivered','returned')";
+    else if(filter==='delivered'||filter==='returned'){extra=' AND s.status=?';params.push(filter)}
+    const itemsSQL='SELECT '+shipmentColumns+' FROM gstdesk_shipments s JOIN gstdesk_meesho_invoices i ON i.business_id=s.business_id AND i.invoice_no=s.invoice_no WHERE s.business_id=?'+extra+' ORDER BY i.order_date DESC,s.suborder_id DESC LIMIT 50';
+    const labelsSQL="SELECT COUNT(*) AS total_labels,SUM(CASE WHEN match_status='matched_invoice' THEN 1 ELSE 0 END) AS labels_linked_to_invoice,SUM(CASE WHEN match_status='awaiting_invoice' THEN 1 ELSE 0 END) AS labels_awaiting_invoice,SUM(CASE WHEN carrier='valmo' THEN 1 ELSE 0 END) AS valmo_labels,SUM(CASE WHEN carrier='delhivery' THEN 1 ELSE 0 END) AS delhivery_labels FROM gstdesk_shipping_labels WHERE business_id=?";
+    const [invoiceCounts,labelCounts,items]=await Promise.all([
+      counts(env,who),
+      env.DB.prepare(labelsSQL).bind(who.businessId).first(),
+      env.DB.prepare(itemsSQL).bind(...params).all()
+    ]);
+    return response({source:'D1',autoCheck:false,filter,
+      counts:{...invoiceCounts,...Object.fromEntries(Object.entries(labelCounts||{}).map(([k,v])=>[k,Number(v||0)]))},
+      items:(items.results||[]).map(view),hasMore:(items.results||[]).length===50
+    });
   }
   if(path==='/api/shipping/labels/unmatched'&&request.method==='GET'){
     const result=await env.DB.prepare("SELECT suborder_id,carrier,awb,label_invoice_no,source_page,source_pdf_sha256,duplicate_label_copies FROM gstdesk_shipping_labels WHERE business_id=? AND match_status='awaiting_invoice' ORDER BY suborder_id").bind(who.businessId).all();
@@ -222,7 +248,7 @@ export async function shippingApi(request,env,who){
     const params=[who.businessId];
     let extra='';
     if(data.mode==='one'){extra=' AND suborder_id=?';params.push(data.suborderId)}
-    const rows=await env.DB.prepare("SELECT suborder_id,awb,status FROM gstdesk_shipments WHERE business_id=? AND carrier='valmo' AND awb IS NOT NULL AND status!='delivered'"+extra+" ORDER BY COALESCE(last_checked_at,'') ASC,suborder_id LIMIT 10").bind(...params).all();
+    const rows=await env.DB.prepare("SELECT suborder_id,awb,status FROM gstdesk_shipments WHERE business_id=? AND carrier='valmo' AND awb IS NOT NULL AND status NOT IN ('delivered','returned')"+extra+" ORDER BY COALESCE(last_checked_at,'') ASC,suborder_id LIMIT 10").bind(...params).all();
     const pending=rows.results||[],results=[];
     // Explicit user action only. Limited batch; no background refresh, cron, or scheduling.
     for(const row of pending){
@@ -233,7 +259,7 @@ export async function shippingApi(request,env,who){
             error:'carrier_status_or_delivery_date_not_fully_verified'});
           continue;
         }
-        const save=await env.DB.prepare("UPDATE gstdesk_shipments SET status=?,status_description=?,delivered_at=?,delivered_date_ist=?,last_checked_at=CURRENT_TIMESTAMP,last_event_at=?,last_check_error=NULL,last_status_source='valmo_on_demand',events_json=?,updated_at=CURRENT_TIMESTAMP WHERE business_id=? AND suborder_id=? AND awb=? AND status!='delivered'").bind(
+        const save=await env.DB.prepare("UPDATE gstdesk_shipments SET status=?,status_description=?,delivered_at=?,delivered_date_ist=?,last_checked_at=CURRENT_TIMESTAMP,last_event_at=?,last_check_error=NULL,last_status_source='valmo_on_demand',events_json=?,updated_at=CURRENT_TIMESTAMP WHERE business_id=? AND suborder_id=? AND awb=? AND status NOT IN ('delivered','returned')").bind(
           verified.status,verified.description,verified.deliveredAt,verified.deliveredDateIST,
           verified.lastEventAt,JSON.stringify(verified.events),who.businessId,row.suborder_id,row.awb).run();
         results.push({suborderId:row.suborder_id,awb:row.awb,checked:true,saved:save.meta?.changes===1,
