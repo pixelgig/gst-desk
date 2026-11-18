@@ -13,18 +13,18 @@
 
 **Do this at the beginning of every GST Desk task, regardless of whether the request seems small:**
 
-1. **Read this entire \`AGENTS.md\`**; especially the current mission, live task board, latest entries, hard rules and handover notes.
-2. **Read \`brain.md\` in full**, or at minimum the relevant sections before proposing anything. When implementing, inspect the current actual code and tests too; neither document substitutes for source.
+1. **Read this entire `AGENTS.md`**; especially the current mission, live task board, latest entries, hard rules and handover notes.
+2. **Read `brain.md` in full**, or at minimum the relevant sections before proposing anything. When implementing, inspect the current actual code and tests too; neither document substitutes for source.
 3. Read the **latest main branch**, current README, relevant files from [brain.md §5–6](./brain.md#5-complete-source-file-directory-and-ownership-map), and affected tests. Verify more recent commits and other agents' changes. Never assume this file has the newest facts.
 4. Determine whether you are **researching, modifying source, testing, committing, deploying, migrating D1, or validating a real mobile browser**. Those are distinct stages with distinct evidence.
 5. Select/create a **TASK-ID** in the task board or ledger. Clearly identify the request, user expectation, feature owner, current behavior and intended outcome.
-6. State **the exact AI identity supported by your session**: provider/product, model name/version *if actually exposed*, and mode/agent if known. Do **not** invent a brand, nickname, variant, runtime or provider. If unavailable, write \`model: not exposed\`.
+6. State **the exact AI identity supported by your session**: provider/product, model name/version *if actually exposed*, and mode/agent if known. Do **not** invent a brand, nickname, variant, runtime or provider. If unavailable, write `model: not exposed`.
 7. Before modifying code, inspect the impact map and define a **reversible smallest change**, test plan, privacy/finance implications and rollback path. Preserve all existing tools and data.
 8. During changes, note what you actually changed, why, and what succeeded or failed. Do not claim to run a tool or test that was not run.
 9. **After every meaningful task, including failed/blocked/reverted tasks, update this file**: task board/current state and an append-only change event. Update [brain.md](./brain.md) as well if architecture, routes, schema, meaning of a metric or long-term decisions changed.
 10. Confirm the ledger update is committed or included in the PR, check final GitHub state, and report the task ID, AI identity, outcome, commit, verification/deployment status and remaining work to the owner.
 
-**No agent can technically force every other AI platform to load this document.** GitHub/Codex-compatible agents often recognize root \`AGENTS.md\`, but Gemini/other tools may require the user to say: **"Read AGENTS.md and brain.md before editing, and update AGENTS.md when finished."** The instructions take effect only when the chosen AI has actually read and follows them.
+**No agent can technically force every other AI platform to load this document.** GitHub/Codex-compatible agents often recognize root `AGENTS.md`, but Gemini/other tools may require the user to say: **"Read AGENTS.md and brain.md before editing, and update AGENTS.md when finished."** The instructions take effect only when the chosen AI has actually read and follows them.
 
 ### Ground-truth order
 
@@ -55,7 +55,7 @@ The system should progressively handle:
 
 ### Invariants that take priority over convenience
 
-- **Same repository and business:** \`pixelgig/gst-desk\`, branch \`main\`, existing Worker/domain/D1; no replacement stack without explicit approval.
+- **Same repository and business:** `pixelgig/gst-desk`, branch `main`, existing Worker/domain/D1; no replacement stack without explicit approval.
 - **Private:** Cloudflare Access + active D1 owner membership; this repo is public, so **never commit** secrets, API tokens, buyer details, actual invoice PDFs/ZIPs, unredacted exports or database backups.
 - **₹0 recurring:** verify current free limits and whether an external service will require billing; no silent paid activation.
 - **Truthful states:** invoice ≠ live order ≠ settlement ≠ profit ≠ carrier delivery; an owner confirmation ≠ carrier-verified timestamp; downloaded GSTR JSON ≠ filed GST return.
@@ -67,7 +67,7 @@ The system should progressively handle:
 
 ## 2. Division of responsibility: AGENTS vs brain
 
-| Topic | This file (\`AGENTS.md\`) | [brain.md](./brain.md) |
+| Topic | This file (`AGENTS.md`) | [brain.md](./brain.md) |
 | --- | --- | --- |
 | What are we trying to achieve today? | Current mission, work queue, acceptance criteria | Full business strategy/background |
 | What is already live / planned? | Dated status snapshot, task status with evidence | Deeper architecture and prior decisions |
@@ -83,15 +83,15 @@ The system should progressively handle:
 
 Every task has **three independent statuses**:
 
-**Work state:** \`IDEA\` · \`QUEUED\` · \`ACTIVE\` · \`BLOCKED\` · \`SOURCE_DONE\` · \`CANCELLED\` · \`SUPERSEDED\` · \`REVERTED\`.
+**Work state:** `IDEA` · `QUEUED` · `ACTIVE` · `BLOCKED` · `SOURCE_DONE` · `CANCELLED` · `SUPERSEDED` · `REVERTED`.
 
-**Delivery state:** \`NOT_APPLICABLE\` · \`NOT_COMMITTED\` · \`COMMITTED_ONLY\` · \`PR_OPEN\` · \`DEPLOY_REQUESTED\` · \`DEPLOYED_VERIFIED_VERSION\` · \`DEPLOY_FAILED\` · \`ROLLBACK_DEPLOYED\`.
+**Delivery state:** `NOT_APPLICABLE` · `NOT_COMMITTED` · `COMMITTED_ONLY` · `PR_OPEN` · `DEPLOY_REQUESTED` · `DEPLOYED_VERIFIED_VERSION` · `DEPLOY_FAILED` · `ROLLBACK_DEPLOYED`.
 
-**Verification state:** \`NOT_RUN\` · \`SOURCE_TESTED\` · \`BUNDLED_TESTED\` · \`AUTHENTICATED_BROWSER_TESTED\` · \`OWNER_ACCEPTED\` · \`FAILED\` · \`UNKNOWN\`.
+**Verification state:** `NOT_RUN` · `SOURCE_TESTED` · `BUNDLED_TESTED` · `AUTHENTICATED_BROWSER_TESTED` · `OWNER_ACCEPTED` · `FAILED` · `UNKNOWN`.
 
-For documentation-only changes, \`work=SOURCE_DONE\`, \`delivery=COMMITTED_ONLY\`, \`verification=SOURCE_TESTED\` (document-content review) is appropriate; deployment is **NOT_APPLICABLE** because no application Worker change was intended. Never label an untested UI as \`OWNER_ACCEPTED\`.
+For documentation-only changes, `work=SOURCE_DONE`, `delivery=COMMITTED_ONLY`, `verification=SOURCE_TESTED` (document-content review) is appropriate; deployment is **NOT_APPLICABLE** because no application Worker change was intended. Never label an untested UI as `OWNER_ACCEPTED`.
 
-**Task completion:** Code changes must be committed with tests where possible, ledger updated, and exact remaining deployment/owner acceptance stated. A task may be \`SOURCE_DONE\` while not production-ready. For actual production work, completion requires tested deployment and authenticated browser acceptance; if unavailable, explicitly leave a follow-up task.
+**Task completion:** Code changes must be committed with tests where possible, ledger updated, and exact remaining deployment/owner acceptance stated. A task may be `SOURCE_DONE` while not production-ready. For actual production work, completion requires tested deployment and authenticated browser acceptance; if unavailable, explicitly leave a follow-up task.
 
 ## 4. Snapshot of the project at ledger creation
 
@@ -99,12 +99,12 @@ For documentation-only changes, \`work=SOURCE_DONE\`, \`delivery=COMMITTED_ONLY\
 
 | Area | Baseline state | Evidence / next check |
 | --- | --- | --- |
-| App/repository | Existing production Worker \`gst-desk-preview\` on \`gst.nividhi.in\`, source under \`pixelgig/gst-desk\` | [brain.md §3](./brain.md#3-current-stack-boundaries-and-architecture); verify Cloudflare latest deployment per task. |
-| Source of truth | Cloudflare Access and existing D1 \`gst-desk-db\`; some legacy workspace data remains compatibility-key based | [brain.md §7](./brain.md#7-data-model-lineage-and-accounting-invariants). |
+| App/repository | Existing production Worker `gst-desk-preview` on `gst.nividhi.in`, source under `pixelgig/gst-desk` | [brain.md §3](./brain.md#3-current-stack-boundaries-and-architecture); verify Cloudflare latest deployment per task. |
+| Source of truth | Cloudflare Access and existing D1 `gst-desk-db`; some legacy workspace data remains compatibility-key based | [brain.md §7](./brain.md#7-data-model-lineage-and-accounting-invariants). |
 | Core workspaces | 16 legacy tabs plus modern homepage; current code contains GST worksheets, importer, inventory, profit, order and invoice tools | [brain.md §4](./brain.md#4-the-16-legacy-workspaces-plus-the-modern-homepage). |
 | Homepage | Eight D1 invoice/return/archive cards and monthly breakdown implemented in source; old four-tile React directory also exists | Overview modules; source/UI fixes [226b7c0](https://github.com/pixelgig/gst-desk/commit/226b7c0b271b83d573efeb75e0d05ead39f80a2b). |
 | Valmo | Two saved status categories, full-width D1 refresh, collapsed order details, independent PDF/ZIP importer, manual carrier checks | Shipping modules, [brain.md §6.3](./brain.md#63-shipping-and-label-source-line-anchors). |
-| Recent UI regression | Global \`section{display:none}\` and compiled browser \`__name\` reference caused disappearing panels; source fix and regression test committed | [226b7c0](https://github.com/pixelgig/gst-desk/commit/226b7c0b271b83d573efeb75e0d05ead39f80a2b), [f23fa552](https://github.com/pixelgig/gst-desk/commit/f23fa552ff504cc05179a0ce38212c7649697a0d). Deployment was separately confirmed in a prior session; recheck for future tasks. |
+| Recent UI regression | Global `section{display:none}` and compiled browser `__name` reference caused disappearing panels; source fix and regression test committed | [226b7c0](https://github.com/pixelgig/gst-desk/commit/226b7c0b271b83d573efeb75e0d05ead39f80a2b), [f23fa552](https://github.com/pixelgig/gst-desk/commit/f23fa552ff504cc05179a0ce38212c7649697a0d). Deployment was separately confirmed in a prior session; recheck for future tasks. |
 | GST financial imports | Source-backed historical Meesho invoices, credit notes, filed return summaries, hashes, issue-date month logic | Historical, **not live Meesho sync**. |
 | Live Meesho order API | **Not established** | Must use official/authorized data source before real-time claims. |
 | Alexa Hindi | Source for read-only intents/staging API, not proved active on Echo | [brain.md §10.3](./brain.md#103-hindi-amazon-alexa-voice), integration docs. |
@@ -153,11 +153,11 @@ This is the **editable summary** of current tasks. Append-only event history liv
 | **ORDER-001** | P2 | Determine legitimate Meesho order source; design notification intake | BLOCKED | NOT_APPLICABLE | NOT_RUN | No confirmed seller webhook/API yet |
 | **ALEXA-001** | P3 | Configure and test Hindi read-only skill with authorized owner Echo | QUEUED | NOT_APPLICABLE | NOT_RUN | Requires Alexa/Amazon configuration; no fake live metrics |
 
-**Task IDs are stable, not counters to overwrite.** New tasks use a concise category prefix (e.g. \`UI-002\`, \`LIST-003\`, \`BUG-001\`, \`DEPLOY-001\`). Do not recycle an ID after completion or cancellation. A major task can have child IDs (\`LIST-001A\`, \`LIST-001B\`) with a clear parent. Multiple agents must check latest file before reserving an ID.
+**Task IDs are stable, not counters to overwrite.** New tasks use a concise category prefix (e.g. `UI-002`, `LIST-003`, `BUG-001`, `DEPLOY-001`). Do not recycle an ID after completion or cancellation. A major task can have child IDs (`LIST-001A`, `LIST-001B`) with a clear parent. Multiple agents must check latest file before reserving an ID.
 
 ### How to start and pause a task
 
-When starting, set \`Work=ACTIVE\` and record agent identity, scope and start date in the **Current session handoff** below. If task is interrupted, mark \`BLOCKED\` with why, files/commits staged, data risks, and exact next action. Leave safe unfinished code in a branch/PR if appropriate; do not claim it is live.
+When starting, set `Work=ACTIVE` and record agent identity, scope and start date in the **Current session handoff** below. If task is interrupted, mark `BLOCKED` with why, files/commits staged, data risks, and exact next action. Leave safe unfinished code in a branch/PR if appropriate; do not claim it is live.
 
 ## 7. Current session handoff — update whenever agent changes
 
@@ -167,10 +167,10 @@ The table below is mutable latest-state guidance; details must also appear in th
 | --- | --- |
 | Active owner task | None: documentation initialization completed |
 | Current agent | ChatGPT / GPT-6, documented ledger bootstrapping |
-| Branch / expected base | \`main\`; re-fetch HEAD before any new work |
+| Branch / expected base | `main`; re-fetch HEAD before any new work |
 | Work-in-progress PRs/branches | Not assessed; must check before taking a code task |
 | Uncommitted edits | Unknown outside current GitHub connector session |
-| Last completed task | DOC-001, create \`AGENTS.md\` |
+| Last completed task | DOC-001, create `AGENTS.md` |
 | Last verified prod browser | Not verified during this documentation-only task |
 | Open risks/blockers | UI-001 real signed-in mobile check; official order feed absent; AI Listing templates not yet supplied |
 | Next recommended action | Address owner's next explicit request, or prioritize UI-001 and LIST-001 after owner input |
@@ -210,7 +210,7 @@ The table below is mutable latest-state guidance; details must also appear in th
 ### Practical safety if editing this file
 
 - This repo is **public**. Never paste customer information, invoice contents, private Cloudflare Access identities, API credentials, secret environment values or sensitive screenshot URLs into the ledger.
-- Re-fetch \`AGENTS.md\` immediately before writing and use current blob SHA/merge conflict checks. Never reset or truncate another agent's newly appended events.
+- Re-fetch `AGENTS.md` immediately before writing and use current blob SHA/merge conflict checks. Never reset or truncate another agent's newly appended events.
 - Prefer appending the new event to the end of §9 and updating the concise summary tables; retain all old history. Corrections get a new **CORRECTION** event pointing to the inaccurate event rather than silently erasing it.
 - Never rewrite existing logs to give a different AI credit.
 - Avoid large generated diffs that accidentally reformat the entire file.
@@ -219,21 +219,21 @@ The table below is mutable latest-state guidance; details must also appear in th
 ### Model attribution requirements
 
 Every event records:
-- **Provider/product:** e.g. \`OpenAI / ChatGPT\`, \`OpenAI / Codex\`, \`Google / Gemini\` (only if actually known).
-- **Exact model:** only the verified model label actually presented by the current environment. Example: \`GPT-6\`; if hidden, \`not exposed\`. Names mentioned in a prompt (e.g. "Gemini Hydrogen", "Argon", "Sol") do not establish the agent's actual identity.
-- **Execution context:** ChatGPT tool session, Codex agent, Gemini CLI, IDE or manual work if known; otherwise \`unspecified\`.
+- **Provider/product:** e.g. `OpenAI / ChatGPT`, `OpenAI / Codex`, `Google / Gemini` (only if actually known).
+- **Exact model:** only the verified model label actually presented by the current environment. Example: `GPT-6`; if hidden, `not exposed`. Names mentioned in a prompt (e.g. "Gemini Hydrogen", "Argon", "Sol") do not establish the agent's actual identity.
+- **Execution context:** ChatGPT tool session, Codex agent, Gemini CLI, IDE or manual work if known; otherwise `unspecified`.
 - **Human operator:** owner-approved or owner-requested change when the user requested it; don't imply they signed off on a result they didn't inspect.
 - **Co-authors:** separate individual contributions under one task, with distinct events if needed. Git commit author is a separate fact from AI author and is never inferred from tool access.
 
-**Do not invent Git commit authorship or model attribution for historical commits.** If unproven, mark \`AI agent unknown\` while linking the real commit.
+**Do not invent Git commit authorship or model attribution for historical commits.** If unproven, mark `AI agent unknown` while linking the real commit.
 
 ## 9. Immutable change journal (append events at END)
 
-**Rules:** Newest entries go **at the bottom** so the timeline is natural and append operations conflict less. Entries are append-only; event identifiers are unique (\`EVT-YYYYMMDD-NNN\`). Time in **Asia/Kolkata** with actual local clock where verified; otherwise date only. Do not backdate. Change entries do not prove deployed/accepted status; write what was observed.
+**Rules:** Newest entries go **at the bottom** so the timeline is natural and append operations conflict less. Entries are append-only; event identifiers are unique (`EVT-YYYYMMDD-NNN`). Time in **Asia/Kolkata** with actual local clock where verified; otherwise date only. Do not backdate. Change entries do not prove deployed/accepted status; write what was observed.
 
 ### Event structure — copy and complete for every task
 
-\`\`\`markdown
+```markdown
 ### EVT-YYYYMMDD-NNN — TASK-ID — concise title
 - Date/time: YYYY-MM-DD HH:mm Asia/Kolkata (or "date only; exact time unavailable")
 - AI identity: Provider / product; model: exact-known-label or not exposed; context: ...
@@ -253,7 +253,7 @@ Every event records:
 - Known defects / remaining work: explicit next action and owner-dependent steps
 - Rollback: how to return to last good code; DB rollback separately if relevant
 - Next handoff: next TASK-ID, what to inspect first, precise acceptance test
-\`\`\`
+```
 
 #### Event-level evidence examples
 
@@ -277,14 +277,14 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 
 - **Date/time:** 2026-11-19 IST; exact clock time not independently captured for this GitHub commit.
 - **AI identity:** OpenAI / ChatGPT; **model: GPT-6**; context: user-requested repository documentation task.
-- **Trigger:** Owner requested a reusable read-first AI file that tracks our GST Desk agenda and what Gemini, ChatGPT/Codex or other agents add, change and remove, with exact model attribution and references to \`brain.md\`.
-- **Work:** \`SOURCE_DONE\`; **Delivery:** \`COMMITTED_ONLY\`; **Verification:** \`SOURCE_TESTED\` (document structure and repository presence; no runtime execution required).
-- **Before:** GitHub already contained the extensive [brain.md](./brain.md) but had no root \`AGENTS.md\` to maintain a task board, cross-agent handoff and append-only change journal.
+- **Trigger:** Owner requested a reusable read-first AI file that tracks our GST Desk agenda and what Gemini, ChatGPT/Codex or other agents add, change and remove, with exact model attribution and references to `brain.md`.
+- **Work:** `SOURCE_DONE`; **Delivery:** `COMMITTED_ONLY`; **Verification:** `SOURCE_TESTED` (document structure and repository presence; no runtime execution required).
+- **Before:** GitHub already contained the extensive [brain.md](./brain.md) but had no root `AGENTS.md` to maintain a task board, cross-agent handoff and append-only change journal.
 - **Intended result:** A small enough read-first operational guide plus durable, structured history, statuses, owner priorities, task IDs, model attribution, exact before/after descriptions and per-task deployment/acceptance evidence.
 - **After:** Created this **AGENTS.md** with a persistent mission, source-of-truth rules, cross-AI identity convention, independent task/deploy/verification states, priority queue, safe development workflow, example event contract and this initial entry. **No GST Desk application code or database data was changed by DOC-001.**
-- **Affected files:** \`AGENTS.md\` (new). Optional discovery pointer may be added to \`README.md\`; if done, log that action and its commit truthfully.
+- **Affected files:** `AGENTS.md` (new). Optional discovery pointer may be added to `README.md`; if done, log that action and its commit truthfully.
 - **Design rationale:** [brain.md §0](./brain.md#0-how-an-ai-must-use-this-document), [§11](./brain.md#11-change-impact-matrix--which-file-to-inspect-first), [§12](./brain.md#12-development-testing-and-deployment-protocol), [§20](./brain.md#20-final-ai-handover-contract--prompt).
-- **Git evidence:** This file's creation commit is discoverable in \`git log -- AGENTS.md\` and GitHub history (no commit SHA guessed before the write completes).
+- **Git evidence:** Initial file creation commit [`d1e2d50dd6c0ce36e12af012eb528b20a32c2ae3`](https://github.com/pixelgig/gst-desk/commit/d1e2d50dd6c0ce36e12af012eb528b20a32c2ae3); inspect subsequent `git log -- AGENTS.md` for formatting and discovery updates.
 - **Deployment:** Not applicable; documentation-only task, no Cloudflare deployment requested or performed.
 - **Data/cost/privacy:** No D1 mutation, no new service, no recurring cost, no private business records added.
 - **Outstanding:** This protocol requires participating AIs to read/update the file; GitHub cannot guarantee that every external model follows it. Future assistants must state actual model identity honestly.
