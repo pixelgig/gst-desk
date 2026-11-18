@@ -143,7 +143,7 @@ function gstDeskShippingClient(){
      const orders=[...new Set(text.match(/\b\d{15,20}_\d{1,4}\b/g)||[])];
      const invoices=[...new Set((text.match(/\b87[a-z0-9]{3,30}\b/gi)||[]).map(x=>x.toLowerCase()))];
      if(sellerVerified&&carrier&&awbs.length===1&&orders.length===1&&invoices.length===1){
-       found.push({suborderId:orders[0],invoiceNo:invoices[0],awb:awbs[0],carrier,sourceSha256:sha,page:pageNo});
+       found.push({suborderId:orders[0],invoiceNo:invoices[0],awb:awbs[0],carrier,sellerName:'NIDHI',sourceSha256:sha,page:pageNo});
      } else {
        review.push({file:filename.slice(0,80),page:pageNo,
          reason:!sellerVerified?'Seller is not NIDHI (excluded from GST Desk)':!carrier?'Carrier not identified':!awbs.length?'AWB not reliably extracted':!orders.length?'No suborder ID on page':!invoices.length?'No Nividhi invoice number on page':'Multiple possible identifiers; skipped'});
