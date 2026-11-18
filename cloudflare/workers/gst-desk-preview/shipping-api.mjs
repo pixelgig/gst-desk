@@ -68,13 +68,13 @@ async function checkValmo(awb){
   if(!verified.ok)throw Error(verified.error);
   return verified;
 }
-const shipmentColumns='s.suborder_id,s.invoice_no,s.carrier,s.awb,s.awb_source,s.status,s.status_description,s.delivered_at,s.delivered_date_ist,s.last_checked_at,s.last_event_at,s.last_check_error,s.events_json,i.order_date,i.document_date,i.document_total_paise,i.details_json';
+const shipmentColumns='s.suborder_id,s.invoice_no,s.carrier,s.awb,s.awb_source,s.awb_evidence_sha256,s.status,s.status_description,s.delivered_at,s.delivered_date_ist,s.last_checked_at,s.last_event_at,s.last_check_error,s.events_json,i.order_date,i.document_date,i.document_total_paise,i.details_json';
 const view=record=>{
   let inv={};try{inv=JSON.parse(record.details_json||'{}')}catch{}
   let timeline=[];try{timeline=JSON.parse(record.events_json||'[]')}catch{}
   return {
     suborderId:record.suborder_id,invoiceNo:record.invoice_no,
-    carrier:record.carrier,awb:record.awb,status:record.status,
+    carrier:record.carrier,awb:record.awb,awbSource:record.awb_source||null,awbEvidenceSha256:record.awb_evidence_sha256||null,status:record.status,
     statusDescription:record.status_description,
     deliveredAt:record.delivered_at,deliveredDateIST:record.delivered_date_ist,
     lastCheckedAt:record.last_checked_at,lastEventAt:record.last_event_at,
