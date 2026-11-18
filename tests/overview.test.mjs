@@ -52,8 +52,9 @@ test('invoice detail preserves monetary precision and tax breakdown',async()=>{
   assert.equal(x.deliveryStatus,null);assert.equal(x.originalPdfAvailable,false);
 });
 test('invoice list validates periods and pagination',async()=>{
-  for(const bad of ['000000','132026','092025','112026%27'])assert.equal((await handleOverviewApi(req('/api/invoices?period='+bad),{DB:db()},who)).status,400);
+  for(const bad of ['000000','132026','112026%27'])assert.equal((await handleOverviewApi(req('/api/invoices?period='+bad),{DB:db()},who)).status,400);
   assert.equal((await handleOverviewApi(req('/api/invoices?period=102026&page=-1'),{DB:db()},who)).status,400);
+  assert.equal((await handleOverviewApi(req('/api/invoices?period=092025'),{DB:db()},who)).status,200,'Older valid reporting periods must remain queryable');
   const list=await handleOverviewApi(req('/api/invoices?period=102026'),{DB:db()},who);
   assert.equal((await list.json()).items[0].invoiceNo,'demo100');
 });
