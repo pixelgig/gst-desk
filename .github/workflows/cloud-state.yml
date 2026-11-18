@@ -26,6 +26,7 @@ jobs:
       - name: Syntax checks
         run: |
           node --check cloudflare/workers/gst-desk-preview/worker.js
+          node --check cloudflare/workers/gst-desk-preview/worker.d1-pending.mjs
           node --check cloudflare/workers/gst-desk-preview/state-api.mjs
           node --check cloudflare/workers/gst-desk-preview/cloud-state-client.mjs
       - name: State API security and client tests
