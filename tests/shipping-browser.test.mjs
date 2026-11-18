@@ -22,8 +22,7 @@ async function mount(html){
    const u=String(url);
    calls.push(u);
    let data;
-   if(u==='/api/shipping/summary')data=summary;
-   else if(u.startsWith('/api/shipping/orders?'))data={items:[shipment],hasMore:false};
+   if(u.startsWith('/api/shipping/bootstrap?'))data={...summary,items:[shipment],hasMore:false};
    else throw Error('Unexpected or unauthorized request to '+u);
    return {ok:true,status:200,json:async()=>data};
  };
@@ -47,8 +46,7 @@ test('server D1 shell mounts and shows predefined orders and Check Status withou
  assert.match(panel.textContent,/Order 353399259117061185_1/);
  assert.match(panel.textContent,/VL0086120621708/);
  assert.match(panel.textContent,/24 invoiced orders/);
- assert.ok(calls.includes('/api/shipping/summary'));
- assert.ok(calls.some(x=>x.startsWith('/api/shipping/orders?')));
+ assert.equal(calls.filter(x=>x.startsWith('/api/shipping/bootstrap?')).length,1,'Only one D1 bootstrap GET should be needed');
  assert.ok(!calls.some(x=>x.includes('/api/shipping/check')||x.includes('/api/valmo/track')),'No carrier checks on page load');
  dom.window.close();
 });
