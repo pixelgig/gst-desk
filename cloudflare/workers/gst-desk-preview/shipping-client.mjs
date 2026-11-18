@@ -30,7 +30,7 @@ function gstDeskShippingClient(){
    if(!root)return;
    // Insert alongside existing overview, never inside the React application.
    let target=root.querySelector('#nv-shipping-cards');
-   if(!target){target=el('section');target.id='nv-shipping-cards';const grid=root.querySelector('.nv-stats');if(grid)grid.insertAdjacentElement('afterend',target);else root.append(target)}
+   if(!target){target=el('div');target.id='nv-shipping-cards';const grid=root.querySelector('.nv-stats');if(grid)grid.insertAdjacentElement('afterend',target);else root.append(target)}
    target.replaceChildren(el('h3','','Order & delivery records (manual status checks)'));
    const m=(activeOverview.monthly||[]),money=m.reduce((sum,x)=>sum+toInt(x.netPaise),0);
    const returns=m.reduce((sum,x)=>sum+toInt(x.creditNotes),0),c=shippingCounts;
@@ -116,7 +116,7 @@ function gstDeskShippingClient(){
  function mountValmo(){
    const section=document.getElementById('valmo');if(!section)return;
    const legacy=section.querySelector(':scope > .card');if(legacy)legacy.style.display='none';// Old browser-only AWB tool is superseded by D1.
-   tracker=el('section');tracker.id='nv-shipping-tracker';
+   tracker=el('div');tracker.id='nv-shipping-tracker';
    tracker.append(el('h2','','Valmo Tracking · Saved orders'));
    tracker.append(el('p','','All invoice-linked orders are preloaded in D1. Enter confirmed AWBs from Meesho shipping labels, then click Check Status only when needed.'));
    tracker.append(el('p','nv-track-note','No automatic checks. Verified delivered shipments remain in D1 and are excluded from future checks. Unknown AWBs/statuses stay unknown.'));
