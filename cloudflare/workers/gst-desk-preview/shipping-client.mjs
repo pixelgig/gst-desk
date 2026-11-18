@@ -134,14 +134,19 @@ function gstDeskShippingClient(){
    for(let pageNo=1;pageNo<=pdf.numPages;pageNo++){
      const page=await pdf.getPage(pageNo),tc=await page.getTextContent();
      const text=tc.items.map(x=>x.str||'').join(' ').replace(/\s+/g,' ');
-     const awbs=[...new Set((text.match(/\bVL[A-Z0-9]{8,25}\b/gi)||[]).map(x=>x.toUpperCase()))];
+     // The seller's TAX INVOICE occupies the bottom half of every Meesho label.
+     // Reject mixed-business labels, including Keshav Kripa, before saving an AWB.
+     const sellerVerified=/Sold\s+by\s*:\s*NIDHI\b/i.test(text);
+     const carrier=/\bDelhivery\b/i.test(text)?'delhivery':(/\bValmo\b/i.test(text)?'valmo':null);
+     const awbs=carrier==='valmo'?[...new Set((text.match(/\bVL\d{13}\b/gi)||[]).map(x=>x.toUpperCase()))]:
+       carrier==='delhivery'?[...new Set(text.match(/(?<!\d)\d{16}(?!\d)/g)||[])]:[];
      const orders=[...new Set(text.match(/\b\d{15,20}_\d{1,4}\b/g)||[])];
      const invoices=[...new Set((text.match(/\b87[a-z0-9]{3,30}\b/gi)||[]).map(x=>x.toLowerCase()))];
-     if(awbs.length===1&&orders.length===1&&invoices.length===1){
-       found.push({suborderId:orders[0],invoiceNo:invoices[0],awb:awbs[0],sourceSha256:sha,page:pageNo});
+     if(sellerVerified&&carrier&&awbs.length===1&&orders.length===1&&invoices.length===1){
+       found.push({suborderId:orders[0],invoiceNo:invoices[0],awb:awbs[0],carrier,sourceSha256:sha,page:pageNo});
      } else {
        review.push({file:filename.slice(0,80),page:pageNo,
-         reason:!awbs.length?'No Valmo AWB on page':!orders.length?'No suborder ID on page':!invoices.length?'No invoice number on page':'Multiple possible identifiers; skipped'});
+         reason:!sellerVerified?'Seller is not NIDHI (excluded from GST Desk)':!carrier?'Carrier not identified':!awbs.length?'AWB not reliably extracted':!orders.length?'No suborder ID on page':!invoices.length?'No Nividhi invoice number on page':'Multiple possible identifiers; skipped'});
      }
    }
    return {found,review};
@@ -154,7 +159,15 @@ function gstDeskShippingClient(){
    for(const file of files){
      if(file.size>25000000)throw Error('File too large (25 MB maximum)');
      if(/\.zip$/i.test(file.name)){
-       if(!window.JSZip)throw Error('ZIP reader unavailable. Upload PDF labels directly.');
+       if(!window.JSZip){
+         await new Promise((resolve,reject)=>{
+           const script=document.createElement('script');
+           script.src='https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+           script.onload=resolve;script.onerror=()=>reject(Error('ZIP parser could not load'));
+           document.head.append(script);
+         });
+       }
+       if(!window.JSZip)throw Error('ZIP parser unavailable');
        const archive=await window.JSZip.loadAsync(file);
        for(const entry of Object.values(archive.files)){
          if(entry.dir||!/\.pdf$/i.test(entry.name))continue;
@@ -199,7 +212,7 @@ function gstDeskShippingClient(){
      status.textContent='Reading selected shipping labels locally. No PDF is uploaded.';
      const {rows}=await extractLabelFiles(files,preview);
      if(!rows.length){status.textContent='No unambiguous shipping label mappings were found. Check the reviewed pages.';return}
-     if(!confirm('Save '+rows.length+' verified order + invoice + AWB mappings to D1? Original PDF/ZIP files will NOT be uploaded or stored. No carrier tracking check will run.'))return;
+     if(!confirm('Save '+rows.length+' seller-verified Nividhi label AWBs to D1? Other sellers are excluded. Only parsed identifiers and hashes are saved. No PDFs, ZIPs or carrier requests.'))return;
      const result=await submit('/api/shipping/labels/import','POST',{items:rows});
      const outcomes=result.results.map(x=>x.outcome);
      status.textContent=result.saved+' AWBs saved. '+outcomes.filter(x=>x==='already_saved').length+' already saved. '+
