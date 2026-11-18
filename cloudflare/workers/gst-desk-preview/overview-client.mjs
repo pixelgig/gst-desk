@@ -8,7 +8,12 @@ const request=async url=>{const r=await fetch(url,{credentials:'same-origin',cac
 const css=el('style');
 css.textContent='#nv-overview{color:#1b3029;font:14px/1.55 system-ui;margin:20px 0 28px}#nv-overview h2{font-size:24px;letter-spacing:-.5px;margin:3px 0}#nv-overview h3{font-size:16px;margin:0 0 11px}#nv-overview p{margin:6px 0;color:#64776b}#nv-overview .nv-kicker{font-size:11px;font-weight:750;letter-spacing:1.1px;color:#137a63;text-transform:uppercase}#nv-overview .nv-stats,#nv-overview .nv-months{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin:12px 0}#nv-overview .nv-cols{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;margin:14px 0}#nv-overview .nv-panel,#nv-overview .nv-stat,#nv-overview .nv-month{background:#fff;border:1px solid #dfe8df;border-radius:13px;padding:14px}#nv-overview .nv-stat,#nv-overview .nv-month{display:flex;flex-direction:column;gap:5px;text-align:left;color:#214236;cursor:pointer}#nv-overview .nv-stat strong{font-size:22px;line-height:1.25}#nv-overview .nv-stat small,#nv-overview .nv-month small{font-size:12px;color:#6b8072}#nv-overview .nv-month{background:#f9fcfa}#nv-overview .nv-month strong{font-size:20px}#nv-overview button.nv-stat:hover,#nv-overview button.nv-month:hover,#nv-overview button.nv-entry:hover{border-color:#70ba96;box-shadow:0 5px 16px #126c4715}#nv-overview button:focus-visible{outline:3px solid #74bc99}#nv-overview .nv-entry{display:flex;justify-content:space-between;align-items:center;text-align:left;gap:12px;width:100%;background:#fff;border:1px solid #e0e9e2;border-radius:9px;color:#183629;padding:10px;cursor:pointer;margin:6px 0}#nv-overview .nv-entry strong{display:block}#nv-overview .nv-entry small{display:block;color:#6e8072;font-size:11px;margin-top:2px}#nv-overview .nv-entry .nv-value{font-weight:700;white-space:nowrap}#nv-overview .nv-hint{font-size:12px;color:#63766c}#nv-overview .nv-warning{border-left:3px solid #d49e41;background:#fff9eb;color:#6d592e;padding:11px;font-size:12px;margin:10px 0}#nv-overview .nv-back{background:#e6f4ea!important;color:#126146!important;border-radius:8px;padding:8px 13px;margin:10px 10px 12px 0}#nv-overview .nv-detail{border:1px solid #dfe9e0;background:white;border-radius:13px;padding:17px}#nv-overview dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}#nv-overview dt{font-size:11px;color:#6c7d73}#nv-overview dd{margin:3px 0;font-weight:650;overflow-wrap:anywhere}#nv-overview .nv-error{padding:12px;border:1px solid #eababa;border-radius:9px;background:#fff3f3;color:#933}#nv-overview .nv-green{font-size:12px;color:#137a63;font-weight:750}@media(max-width:750px){#nv-overview .nv-cols{grid-template-columns:1fr}#nv-overview .nv-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}';
 document.head.append(css);
-let home,detail,appRoot,overview,lastPeriod='112026';
+let home,detail,appRoot,overview,lastPeriod='112026',overviewSnapshot=null,overviewStamp=null,overviewRefresh=null,refreshing=false;
+const cacheKey='gstdesk-ui:overview:v2:'+String(window.__GST_DESK_CACHE_SCOPE__||'private-owner');
+const getCache=()=>{try{const j=JSON.parse(localStorage.getItem(cacheKey)||'null');return j&&j.data?.counts&&Array.isArray(j.data?.monthly)&&Number.isFinite(Date.parse(j.fetchedAt))?j:null}catch{return null}};
+const putCache=v=>{try{localStorage.setItem(cacheKey,JSON.stringify(v))}catch{}};
+const formatTime=t=>{try{return new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'}).format(new Date(t))+' IST'}catch{return 'Unknown'}};
+const showStamp=()=>{if(overviewStamp)overviewStamp.textContent=overviewSnapshot?'Last fetched from D1: '+formatTime(overviewSnapshot.fetchedAt)+' · Saved snapshot':'No saved dashboard snapshot'};
 const btn=(label,onclick)=>{const b=el('button','nv-back',label);b.type='button';b.onclick=onclick;return b};
 const title=(node,label,hint)=>{node.append(el('div','nv-kicker','Your private Cloudflare D1 records'),el('h2','',label));if(hint)node.append(el('p','nv-hint',hint))};
 const goWorkspace=id=>document.querySelector('nav.tabs button[data-tab="'+id+'"]')?.click();
@@ -66,8 +71,34 @@ const foot=el('div','nv-cols'),filings=el('div','nv-panel'),extra=el('div','nv-p
 window.__gstDeskOverviewSnapshot=d;
 window.dispatchEvent(new CustomEvent('gstdesk:overview-loaded',{detail:d}));
 }
-async function reload(){home.replaceChildren(el('p','','Loading database summary…'));try{paint(await request('/api/overview'))}catch(e){home.replaceChildren();title(home,'Database summary unavailable');home.append(el('p','nv-error',e.message),btn('Retry',reload))}}
-const boot=()=>{const modern=document.getElementById('modern');appRoot=document.getElementById('gstdesk-react-root');if(!modern||!appRoot)return;const panel=el('div');panel.id='nv-overview';home=el('div');detail=el('div','nv-detail');detail.hidden=true;panel.append(home,detail);modern.insertBefore(panel,appRoot);reload()};
+async function reload(){
+ if(refreshing)return;refreshing=true;
+ if(overviewRefresh){overviewRefresh.disabled=true;overviewRefresh.textContent='Refreshing…'}
+ if(!overviewSnapshot)home.replaceChildren(el('p','','Loading D1 dashboard summary…'));
+ try{
+   const response=await Promise.race([
+     request('/api/overview'),
+     new Promise((_,reject)=>setTimeout(()=>reject(Error('D1 request timed out')),12000))
+   ]);
+   overviewSnapshot={data:response,fetchedAt:new Date().toISOString()};
+   putCache(overviewSnapshot);paint(response);showStamp();
+ }catch(e){
+   if(!overviewSnapshot){home.replaceChildren();title(home,'Database summary unavailable');home.append(el('p','nv-error',e.message),btn('Retry',reload))}
+   else {showStamp();overviewStamp.textContent+=' · Refresh unavailable: '+e.message}
+ }finally{refreshing=false;if(overviewRefresh){overviewRefresh.disabled=false;overviewRefresh.textContent='Refresh Data'}}
+}
+const boot=()=>{
+ const modern=document.getElementById('modern');appRoot=document.getElementById('gstdesk-react-root');
+ if(!modern||!appRoot)return;
+ const panel=el('div');panel.id='nv-overview';home=el('div');detail=el('div','nv-detail');detail.hidden=true;
+ const bar=el('div','nv-track-actions');bar.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;';
+ overviewStamp=el('span','nv-hint','Checking saved summary…');overviewRefresh=btn('Refresh Data',reload);
+ bar.append(overviewStamp,overviewRefresh);panel.append(bar,home,detail);modern.insertBefore(panel,appRoot);
+ // Never block the homepage on a D1 fetch if a previous snapshot exists.
+ overviewSnapshot=getCache()||(window.__GST_DESK_OVERVIEW_SEED__?.data?.counts?window.__GST_DESK_OVERVIEW_SEED__:null);
+ if(overviewSnapshot){paint(overviewSnapshot.data);putCache(overviewSnapshot);showStamp()}
+ else reload();
+};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 }
 export const overviewClientJS='('+gstDeskOverviewClient.toString()+')();';
