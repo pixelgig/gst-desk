@@ -98,3 +98,10 @@ test('HTML worker injects the server snapshot and inline scripts rather than fra
  assert.ok(worker.includes('start+overviewClientJS+end+start+shippingClientJS+end'));
  assert.ok(worker.includes('__GST_DESK_CACHE_SCOPE__'));
 });
+
+test('production Worker preserves inline browser helper and only hides top-level workspace sections',()=>{
+ const worker=readFileSync(new URL('../cloudflare/workers/gst-desk-preview/worker.js',import.meta.url),'utf8');
+ assert.ok(worker.includes('var __name=function(target,value)'), 'Wrangler emits __name calls inside inlined client function strings');
+ assert.ok(worker.includes('main>section{display:none}main>section.on{display:block}'), 'Nested invoice summary and Valmo upload sections must remain visible');
+ assert.ok(!worker.includes('}section{display:none}section.on{display:block}'), 'Global section selector would hide the importer and fallback summary');
+});
