@@ -78,6 +78,32 @@ function gstDeskCloudClient(){
   });
   document.addEventListener('DOMContentLoaded',()=>{
     show('GST Desk connected to Cloudflare D1.',false);
+    const meesho=document.getElementById('meesho');
+    if(meesho){
+      const info=document.createElement('div');
+      info.id='gstdesk-d1-september-import';
+      info.className='card';
+      info.style.cssText='padding:14px;margin:12px 0;border:1px solid #dbeafe;border-radius:12px;';
+      const title=document.createElement('h3');
+      title.textContent='September 2026 · Cloudflare D1 records';
+      info.appendChild(title);
+      const details=document.createElement('p');
+      details.textContent='Loading verified historical Meesho records from cloud database…';
+      info.appendChild(details);
+      meesho.insertBefore(info,meesho.children[1]||null);
+      fetch('/api/meesho/summary?period=092026',{cache:'no-store'})
+        .then(async r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()})
+        .then(d=>{
+          const p=d.report||{},i=d.invoices||{},f=d.filedGstr1||{};
+          const rs=c=>('₹'+(Number(c||0)/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}));
+          details.textContent=(p.salesRows||0)+' sales, '+(p.returnRows||0)+' return; '+
+            (i.total||0)+' invoice/credit-note records ('+(i.crossPeriod||0)+' dated outside September). '+
+            'Filed GSTR-1 taxable: '+rs(f.netTaxablePaise)+
+            '; reported net taxable after per-row rounding: '+rs(p.netTaxablePaise)+
+            '. Historical import only, not live Meesho synchronization. Original PDF files remain in your ZIP backup.';
+        })
+        .catch(()=>{details.textContent='Historical D1 summary currently unavailable. Existing records have not been changed.';});
+    }
     const old=[];
     try{for(let i=0;i<localStorage.length;i++){
       const k=localStorage.key(i);
