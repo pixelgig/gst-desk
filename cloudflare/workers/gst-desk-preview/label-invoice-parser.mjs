@@ -38,3 +38,6 @@ export function parsePrintedInvoice(rawText){
    suborderId:suborders[0],invoiceNo:invoices[0],invoiceDate:invoiceDates[0],
    orderDate:orderDates.length===1?orderDates[0]:null,invoiceTotalPaise,printedGSTPaise};
 }
+
+// Embed the small pure parser alongside existing client JavaScript; no extra request.
+export const labelParserBrowserJS='const asPaise='+asPaise.toString()+';const isoDate='+isoDate.toString()+';'+parsePrintedInvoice.toString()+';';
