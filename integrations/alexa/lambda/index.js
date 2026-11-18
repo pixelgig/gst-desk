@@ -74,6 +74,36 @@ const DraftCountHandler = {
   },
 };
 
+// These intents are wired now. We never infer order totals from old localStorage
+// or the number of GST invoices; they must come from verified Meesho sync later.
+const TodayMeeshoOrdersHandler = {
+  canHandle: isIntent('TodayMeeshoOrdersIntent'),
+  async handle(input) {
+    try {
+      const data = await getSummary();
+      if (data.availableMetrics?.ordersToday === true &&
+          Number.isSafeInteger(data.orders?.today) && data.orders.today >= 0) {
+        return say(input, 'आज मीशो पर ' + data.orders.today + ' नए ऑर्डर दर्ज हुए हैं।');
+      }
+    } catch {}
+    return say(input, 'आज के मीशो ऑर्डर की लाइव जानकारी अभी जीएसटी डेस्क से जुड़ी नहीं है। डेटा सिंक होने के बाद सही संख्या बताऊँगी।');
+  },
+};
+
+const PendingDeliveriesHandler = {
+  canHandle: isIntent('PendingDeliveriesIntent'),
+  async handle(input) {
+    try {
+      const data = await getSummary();
+      if (data.availableMetrics?.pendingDeliveries === true &&
+          Number.isSafeInteger(data.orders?.pendingDeliveries) && data.orders.pendingDeliveries >= 0) {
+        return say(input, 'मीशो के ' + data.orders.pendingDeliveries + ' ऑर्डर अभी डिलीवर होने बाकी हैं।');
+      }
+    } catch {}
+    return say(input, 'डिलीवरी की ताज़ा स्थिति अभी जीएसटी डेस्क से सिंक नहीं हुई है। इसलिए पेंडिंग ऑर्डर की संख्या नहीं बता सकती।');
+  },
+};
+
 const StatusHandler = {
   canHandle: isIntent('StatusIntent'),
   async handle(input) {
@@ -89,7 +119,7 @@ const StatusHandler = {
 const HelpHandler = {
   canHandle: isIntent('AMAZON.HelpIntent'),
   handle: input => say(input,
-    'अभी आप ड्राफ्ट चालानों की संख्या और सिस्टम की स्थिति पूछ सकते हैं। बिक्री, मुनाफा और जीएसटी का वॉइस डेटा अभी जुड़ना बाकी है।',
+    'अभी आप ड्राफ्ट चालान, आज के मीशो ऑर्डर, और पेंडिंग डिलीवरी के बारे में पूछ सकते हैं। जिन रिकॉर्ड का डेटा सिंक नहीं हुआ है, उनकी संख्या अभी उपलब्ध नहीं होगी।',
     'क्या आप ड्राफ्ट चालानों की संख्या जानना चाहेंगे?'),
 };
 
@@ -102,7 +132,7 @@ const StopHandler = {
 const FallbackHandler = {
   canHandle: isIntent('AMAZON.FallbackIntent'),
   handle: input => say(input,
-    'मैं अभी केवल ड्राफ्ट चालानों की संख्या और सिस्टम की स्थिति बता सकती हूँ।',
+    'आप मुझसे आज के मीशो ऑर्डर, पेंडिंग डिलीवरी और ड्राफ्ट चालानों के बारे में पूछ सकते हैं।',
     'ड्राफ्ट चालान कितने हैं?'),
 };
 
@@ -119,7 +149,7 @@ const ErrorHandler = {
 const internalHandler = Alexa.SkillBuilders.custom()
   .withSkillId(process.env.ALEXA_SKILL_ID || 'amzn1.ask.skill.UNCONFIGURED')
   .addRequestHandlers(
-    LaunchHandler, DraftCountHandler, StatusHandler, HelpHandler,
+    LaunchHandler, DraftCountHandler, StatusHandler, TodayMeeshoOrdersHandler, PendingDeliveriesHandler, HelpHandler,
     StopHandler, FallbackHandler, UnhandledHandler)
   .addErrorHandlers(ErrorHandler)
   .lambda();
