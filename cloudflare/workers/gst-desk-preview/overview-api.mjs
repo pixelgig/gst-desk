@@ -9,7 +9,8 @@ const rowList=async(statement)=>((await statement.all()).results||[]);
 const num=x=>Number.isSafeInteger(Number(x))?Number(x):0;
 const normalizeInvoice=row=>{
   let d={};try{d=JSON.parse(row.details_json||'{}')}catch{}
-  const tax=d.invoiceTaxPaise??(d.taxComponentsPaise?Object.values(d.taxComponentsPaise).reduce((n,v)=>n+num(v),0):null);
+  const components=d.taxComponentsPaise||d.pdfPrintedTaxComponentsPaise||null;
+  const tax=d.invoiceTaxPaise??(components?Object.values(components).reduce((n,v)=>n+num(v),0):null);
   return {
     invoiceNo:row.invoice_no,suborderId:row.suborder_id,
     documentType:row.document_type,orderDate:row.order_date,documentDate:row.document_date,
