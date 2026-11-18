@@ -1,0 +1,14 @@
+{
+  "name": "gst-desk-hindi-alexa-integration",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Alexa Hindi integration within GST Desk; never a separate GST business backend",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ask-sdk-core": "^2.14.0",
+    "ask-sdk-model": "^1.29.0"
+  }
+}
