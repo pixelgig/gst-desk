@@ -8,6 +8,7 @@ on:
       - 'tests/cloud-state.test.mjs'
       - 'tests/overview.test.mjs'
       - 'tests/shipping.test.mjs'
+      - 'tests/shipping-browser.test.mjs'
       - '.github/workflows/cloud-state.yml'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'tests/cloud-state.test.mjs'
       - 'tests/overview.test.mjs'
       - 'tests/shipping.test.mjs'
+      - 'tests/shipping-browser.test.mjs'
       - '.github/workflows/cloud-state.yml'
 permissions:
   contents: read
@@ -27,6 +29,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install browser DOM test runtime
+        run: npm install --no-save --no-package-lock jsdom@24.1.3
       - name: Syntax checks
         run: |
           node --check cloudflare/workers/gst-desk-preview/worker.js
@@ -38,4 +42,4 @@ jobs:
           node --check cloudflare/workers/gst-desk-preview/shipping-api.mjs
           node --check cloudflare/workers/gst-desk-preview/shipping-client.mjs
       - name: State API security and client tests
-        run: node --test tests/cloud-state.test.mjs tests/overview.test.mjs tests/shipping.test.mjs
+        run: node --test tests/cloud-state.test.mjs tests/overview.test.mjs tests/shipping.test.mjs tests/shipping-browser.test.mjs
