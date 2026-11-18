@@ -62,8 +62,8 @@ function gstDeskShippingClient(){
    try{
      const r=await submit('/api/shipping/check','POST',mode==='one'?{mode,suborderId}:{mode:'pending'});
      const saved=r.results.filter(x=>x.saved).length,errors=r.results.length-saved;
-     status.textContent='Selected '+r.selected+' shipments. '+saved+' verified updates saved, '+errors+' unavailable/unverified. '+r.waitingForAwb+' orders still need AWB. Nothing is checked automatically.';
-     await summaryMarkup();await fetchOrders();
+     status.textContent='Selected '+r.selected+' shipments. '+saved+' verified updates saved, '+errors+' unavailable/unverified. '+r.waitingForAwb+' orders still need AWB. No automatic checks.';
+     await fetchOrders();
    }catch(e){status.textContent='Tracking check did not complete: '+e.message+'. No delivery status was invented.'}
    finally{busy=false;for(const b of tracker.querySelectorAll('button'))b.disabled=false}
  }
@@ -72,7 +72,7 @@ function gstDeskShippingClient(){
    if(!/^VL[A-Z0-9]{8,25}$/.test(awb)){status.textContent='Enter the Valmo AWB printed on the shipping label (VL…).';return}
    if(!confirm('Confirm '+awb+' is printed on the actual Meesho shipping label for order '+shipment.suborderId+'?'))return;
    busy=true;
-   try{await submit('/api/shipping/orders/'+encodeURIComponent(shipment.suborderId),'PUT',{awb,source:'seller_shipping_label'});status.textContent='AWB saved in D1. Status was NOT checked automatically.';await summaryMarkup();await fetchOrders()}
+   try{await submit('/api/shipping/orders/'+encodeURIComponent(shipment.suborderId),'PUT',{awb,source:'seller_shipping_label'});status.textContent='AWB saved in D1. Status was NOT checked automatically.';await fetchOrders()}
    catch(e){status.textContent='Cannot save AWB: '+e.message}
    finally{busy=false}
  }
@@ -83,10 +83,11 @@ function gstDeskShippingClient(){
    dl.append(el('p','','Verified status: '+formatStatus(row.status)));
    dl.append(el('p','','Delivered date (IST): '+(row.deliveredDateIST||'Not verified')));
    dl.append(el('p','','Last checked: '+(row.lastCheckedAt||'Never')));
+   if(row.estimatedDeliveryText)dl.append(el('p','','Estimated delivery (not actual): '+row.estimatedDeliveryText));
    if(row.lastEventAt)dl.append(el('p','','Latest verified carrier event: '+row.lastEventAt));
    if(row.statusDescription)dl.append(el('p','','Carrier says: '+row.statusDescription));
    const events=row.trackingEvents||[];
-   if(events.length){dl.append(el('strong','','Stored carrier timeline'));events.forEach(e=>dl.append(el('p','',e.label+' · '+(e.date||'Date not verified'))))}
+   if(events.length){dl.append(el('strong','','Stored carrier timeline'));events.forEach(e=>dl.append(el('p','',e.label+' · '+(e.date||e.timeText||'Date not verified'))))}
    dl.append(el('p','nv-track-note','No PDF or raw tracking response is stored. Delivery dates are saved only when verified from dated carrier events.'));
    return dl;
  }
@@ -96,23 +97,36 @@ function gstDeskShippingClient(){
    for(const order of items){
      const box=el('article','nv-track-row');
      box.append(el('strong','','Order '+order.suborderId),el('small','',order.invoiceNo+' · '+order.orderDate+' · '+asMoney(order.invoiceValuePaise)));
-     box.append(el('p','',formatStatus(order.status)+' · '+(order.awb||'AWB not recorded')+(order.deliveredDateIST?' · Delivered '+order.deliveredDateIST:'')));
+     box.append(el('p','',formatStatus(order.status)+' · '+(order.awb||'AWB not available in the provided Nividhi shipping labels')+(order.deliveredDateIST?' · Delivered '+order.deliveredDateIST:'')));
+     if(order.estimatedDeliveryText)box.append(el('p','nv-track-note','Carrier ETA: '+order.estimatedDeliveryText+' (estimate, not delivery confirmation)'));
      const actions=el('div','nv-track-actions'),showDetail=btn('View shipment details',()=>{const existing=box.querySelector('.nv-track-detail');if(existing)existing.remove();else box.append(detail(order))},'nv-track-secondary');
      actions.append(showDetail);
      if(order.status!=='delivered'){
        if(!order.awb){
-         const input=el('input');input.placeholder='Enter VL… from shipping label';input.setAttribute('aria-label','AWB for '+order.suborderId);input.maxLength=27;
-         actions.append(input,btn('Save AWB',()=>addAwb(order,input)));
-       }else actions.append(btn('Check this shipment',()=>checkStatus('one',order.suborderId)));
+         const input=el('input');input.placeholder='Enter VL… from shipping label';input.setAttribute('aria-label','AWB for '+order.suborderId);input.maxLength=27;input.hidden=true;
+         const save=btn('Save AWB',()=>addAwb(order,input));save.hidden=true;
+         const add=btn('Add AWB from a new label',()=>{input.hidden=false;save.hidden=false;add.hidden=true;input.focus()},'nv-track-secondary');
+         actions.append(add,input,save);
+       }else if(order.carrier==='valmo')actions.append(btn('Check this shipment',()=>checkStatus('one',order.suborderId)));
+       else actions.append(el('span','nv-track-note','Delhivery AWB recorded; live Delhivery tracking not integrated.'));
      }
      box.append(actions);rows.append(box);
    }
  }
  async function fetchOrders(){
    if(!rows)return;
-   rows.replaceChildren(el('p','','Loading saved orders from D1…'));
-   try{const r=await safeRequest('/api/shipping/orders?filter='+encodeURIComponent(listFilter.value));drawOrders(r.items||[]);if(r.hasMore)rows.append(el('p','nv-track-note','Showing first 50 records; apply a narrower status filter.'))}
-   catch(e){rows.replaceChildren(el('p','nv-track-error','Cannot load shipments: '+e.message))}
+   if(!rows.children.length)rows.append(el('p','','Loading saved orders from D1…'));
+   try{
+     const r=await safeRequest('/api/shipping/bootstrap?filter='+encodeURIComponent(listFilter.value));
+     shippingCounts=r.counts;
+     renderDashboard();renderTrackerCounts();
+     drawOrders(r.items||[]);
+     if(r.hasMore)rows.append(el('p','nv-track-note','Showing first 50 records; select a narrower filter for more.'));
+   }catch(e){
+     rows.replaceChildren(el('p','nv-track-error','Could not load D1 shipments: '+e.message));
+     rows.append(btn('Retry loading orders',fetchOrders,'nv-track-secondary'));
+     status.textContent='Shipment database request failed. Your existing records are unchanged.';
+   }
  }
 
  async function loadPdfLibrary(){
@@ -220,7 +234,7 @@ function gstDeskShippingClient(){
        outcomes.filter(x=>!['saved','already_saved'].includes(x)).length+' need manual review. No tracking statuses were fetched.';
      preview.replaceChildren();
      for(const r of result.results)preview.append(el('p','nv-track-note',r.invoiceNo+' · '+r.awb+' · '+r.outcome));
-     await summaryMarkup();await fetchOrders();
+     await fetchOrders();
    }catch(e){status.textContent='Label import could not complete: '+e.message}
    finally{busy=false;input.value=''}
  }
@@ -247,7 +261,8 @@ function gstDeskShippingClient(){
    [['all','All orders'],['awaiting_awb','Awaiting AWB'],['pending','Trackable (not delivered)'],['delivered','Delivered'],['returned','Returned to seller']].forEach(([v,l])=>{const option=el('option','',l);option.value=v;listFilter.append(option)});
    listFilter.onchange=fetchOrders;bar.append(listFilter);
    tracker.append(bar,status);rows=el('div');tracker.append(rows);
-   summaryMarkup().then(fetchOrders);
+   // One D1 bootstrap call renders both counts and orders; never check carrier on page load.
+   fetchOrders();
  }
  const init=()=>{
    window.addEventListener('gstdesk:overview-loaded',e=>{activeOverview=e.detail;renderDashboard()});
