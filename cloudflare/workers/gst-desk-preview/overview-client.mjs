@@ -23,7 +23,31 @@ try{const r=await request('/api/invoices?period='+encodeURIComponent(p)+'&page='
 }
 async function invoice(no,back){
 show();detail.replaceChildren();title(detail,'Invoice '+no,'Original Meesho register and PDF metadata');detail.append(btn('← '+month(back||lastPeriod)+' invoices',()=>periodView(back||lastPeriod)));
-try{const d=(await request('/api/invoices/'+encodeURIComponent(no))).invoice,box=el('div','nv-panel'),dl=el('dl');box.append(el('h3','',d.documentType==='credit-note'?'Credit note':'Tax invoice'));field(dl,'Invoice number',d.invoiceNo);field(dl,'Order number',d.suborderId);field(dl,'Source ZIP month',month(d.sourcePeriod));field(dl,'Order date',d.orderDate);field(dl,'Document date',d.documentDate);field(dl,'HSN',d.hsn);field(dl,'Place of supply',d.placeOfSupply||d.placeOfSupplyCode);field(dl,'Invoice total',money(d.totalPaise));field(dl,'Taxable amount',d.taxablePaise==null?'Not available':money(d.taxablePaise));field(dl,'GST amount',d.taxPaise==null?'Not available':money(d.taxPaise));if(d.hasOtherCharges!==null)field(dl,'Other charges',d.hasOtherCharges?'Present in PDF':'Not present');box.append(dl,el('p','nv-warning','Product: '+(d.productDescription||'Not recorded')));if(d.taxComponentsPaise)box.append(el('p','',Object.entries(d.taxComponentsPaise).map(([k,v])=>k+' '+money(v)).join(' · ')));if(d.taxBreakdownDifferencePaise!=null && d.taxBreakdownDifferencePaise!==0)box.append(el('p','nv-warning','Note: the GST total printed on the source PDF differs from the sum of rounded tax components by '+money(Math.abs(d.taxBreakdownDifferencePaise))+'. The printed total is preserved without adjustment.'));
+try{const d=(await request('/api/invoices/'+encodeURIComponent(no))).invoice,box=el('div','nv-panel'),dl=el('dl');box.append(el('h3','',d.documentType==='credit-note'?'Credit note':'Tax invoice'));field(dl,'Invoice number',d.invoiceNo);field(dl,'Order number',d.suborderId);field(dl,'Source ZIP month',month(d.sourcePeriod));field(dl,'Order date',d.orderDate);field(dl,'Document date',d.documentDate);field(dl,'HSN',d.hsn);field(dl,'Place of supply',d.placeOfSupply||d.placeOfSupplyCode);field(dl,'Invoice total',money(d.totalPaise));field(dl,'Taxable amount',d.taxablePaise==null?'Not available':money(d.taxablePaise));field(dl,'GST amount',d.taxPaise==null?'Not available':money(d.taxPaise));if(d.hasOtherCharges!==null)field(dl,'Other charges',d.hasOtherCharges?'Present in PDF':'Not present');
+const label=d.shippingLabelInvoice;
+if(label){
+  field(dl,'Label-verified seller',label.seller);
+  field(dl,'Meesho SKU',label.sku);
+  field(dl,'Product size',label.size);
+  field(dl,'Quantity',label.quantity);
+  field(dl,'Color',label.color);
+  if(label.product){
+    field(dl,'Product gross price',money(label.product.grossPaise));
+    field(dl,'Product discount',money(label.product.discountPaise));
+    field(dl,'Product taxable value',money(label.product.taxablePaise));
+    field(dl,'Product total',money(label.product.totalPaise));
+  }
+  if(label.otherCharges){
+    field(dl,'Other/logistics gross charge',money(label.otherCharges.grossPaise));
+    field(dl,'Other/logistics taxable value',money(label.otherCharges.taxablePaise));
+    field(dl,'Other/logistics total',money(label.otherCharges.totalPaise));
+  }
+  field(dl,'GST total printed in shipping label',money(label.labelPrintedGSTPaise));
+}
+box.append(dl,el('p','nv-warning','Product: '+(d.productDescription||'Not recorded')));
+if(label?.taxMismatchWithStandaloneInvoice){
+  box.append(el('p','nv-warning','Source mismatch: the standalone tax-invoice PDF prints GST '+money(d.taxPaise)+', while the shipping-label invoice prints '+money(label.labelPrintedGSTPaise)+'. Both source values are preserved. Review against the filed return before making any adjustment.'));
+}if(d.taxComponentsPaise)box.append(el('p','',Object.entries(d.taxComponentsPaise).map(([k,v])=>k+' '+money(v)).join(' · ')));if(d.taxBreakdownDifferencePaise!=null && d.taxBreakdownDifferencePaise!==0)box.append(el('p','nv-warning','Note: the GST total printed on the source PDF differs from the sum of rounded tax components by '+money(Math.abs(d.taxBreakdownDifferencePaise))+'. The printed total is preserved without adjustment.'));
     if(d.originalInvoiceNo)box.append(btn('Open referenced original invoice '+d.originalInvoiceNo,()=>invoice(d.originalInvoiceNo,back)));const hash=el('p','nv-hint','PDF SHA-256: '+d.pdfSha256);hash.style.overflowWrap='anywhere';box.append(hash,el('p','nv-hint','The original PDF binary is not hosted in D1. Invoice metadata alone does not establish delivery or payment.'));
     try{const tracking=(await request('/api/shipping/orders/'+encodeURIComponent(d.suborderId))).shipment;const info=el('div','nv-warning');info.append(el('strong','','Linked delivery tracking'));info.append(el('p','','Status: '+(tracking.status==='delivered'?'Delivered (carrier verified)':tracking.status==='awaiting_awb'?'Awaiting shipping-label AWB':tracking.status)));info.append(el('p','','AWB: '+(tracking.awb||'Not recorded')));info.append(el('p','','Actual delivery date (IST): '+(tracking.deliveredDateIST||'Not verified')));info.append(el('p','','Last checked: '+(tracking.lastCheckedAt||'Never')));box.append(info)}catch{}detail.append(box)}catch(e){detail.append(el('p','nv-error',e.message))}
 }
