@@ -10,7 +10,8 @@ const num=x=>Number.isSafeInteger(Number(x))?Number(x):0;
 const normalizeInvoice=row=>{
   let d={};try{d=JSON.parse(row.details_json||'{}')}catch{}
   const components=d.taxComponentsPaise||d.pdfPrintedTaxComponentsPaise||null;
-  const tax=d.invoiceTaxPaise??(components?Object.values(components).reduce((n,v)=>n+num(v),0):null);
+  const breakdownTotal=components?Object.values(components).reduce((n,v)=>n+num(v),0):null;
+  const tax=d.pdfPrintedTaxTotalPaise??d.invoiceTaxPaise??breakdownTotal;
   return {
     invoiceNo:row.invoice_no,suborderId:row.suborder_id,
     documentType:row.document_type,orderDate:row.order_date,documentDate:row.document_date,
@@ -19,6 +20,8 @@ const normalizeInvoice=row=>{
     taxablePaise:d.taxablePaise??(tax==null?null:num(row.document_total_paise)-num(tax)),
     productDescription:String(d.productDescription||'').slice(0,500),
     taxComponentsPaise:d.taxComponentsPaise||d.pdfPrintedTaxComponentsPaise||null,
+    taxSource:d.pdfPrintedTaxTotalPaise!=null?'invoice_pdf_total_row':(d.invoiceTaxPaise!=null?'invoice_pdf_parsed':'invoice_components_only'),
+    taxBreakdownDifferencePaise:breakdownTotal!=null&&tax!=null?num(tax)-breakdownTotal:null,
     originalInvoiceNo:d.originalInvoiceNo||null,
     placeOfSupply:d.placeOfSupply||null,placeOfSupplyCode:d.placeOfSupplyCode||null,
     hasOtherCharges:d.hasOtherCharges??null,
