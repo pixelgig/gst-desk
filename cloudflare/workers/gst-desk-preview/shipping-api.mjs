@@ -152,38 +152,63 @@ export async function shippingApi(request,env,who){
     let input;try{input=await request.json()}catch{return response({error:'invalid_json'},400)}
     if(!Array.isArray(input?.items)||input.items.length<1||input.items.length>50)
       return response({error:'invalid_label_batch'},400);
-    const orders=new Set(),awbs=new Set(),results=[];
-    // Import only extracted identifiers and evidence hashes. Never upload/store PDF bytes.
+    const orders=new Set(),awbs=new Set(),normalized=[];
     for(const item of input.items){
-      const id=String(item.suborderId||''),inv=String(item.invoiceNo||''),awb=String(item.awb||'').toUpperCase();
-      const hash=String(item.sourceSha256||''),page=Number(item.page);
-      if(!digits.test(id)||!/^87[a-z0-9]{3,30}$/i.test(inv)||!awbPattern.test(awb)||
-         !/^[a-f0-9]{64}$/.test(hash)||!Number.isSafeInteger(page)||page<1||page>10000)
+      const suborderId=String(item.suborderId||''),awb=String(item.awb||'').trim().toUpperCase();
+      const carrier=String(item.carrier||(/^VL\d{13}$/.test(awb)?'valmo':'')).toLowerCase();
+      const invoiceNo=String(item.invoiceNo||'').trim().toLowerCase();
+      const sourcePdfSha256=String(item.sourceSha256||''),sourceZipSha256=String(item.sourceArchiveSha256||sourcePdfSha256);
+      const page=Number(item.page);
+      if(!digits.test(suborderId)||!['valmo','delhivery'].includes(carrier)||
+        !(carrier==='valmo'?/^VL\d{13}$/.test(awb):/^\d{16}$/.test(awb))||
+        (invoiceNo&&!/^87[a-z0-9]{3,30}$/i.test(invoiceNo))||
+        !/^[a-f0-9]{64}$/.test(sourcePdfSha256)||!/^[a-f0-9]{64}$/.test(sourceZipSha256)||
+        !Number.isSafeInteger(page)||page<1||page>10000)
         return response({error:'invalid_label_evidence'},400);
-      if(orders.has(id)||awbs.has(awb))return response({error:'ambiguous_duplicate_label_evidence'},409);
-      orders.add(id);awbs.add(awb);
+      if(orders.has(suborderId)||awbs.has(awb))return response({error:'ambiguous_duplicate_label_evidence'},409);
+      orders.add(suborderId);awbs.add(awb);
+      normalized.push({suborderId,awb,carrier,invoiceNo,sourcePdfSha256,sourceZipSha256,page});
     }
-    for(const item of input.items){
-      const id=String(item.suborderId),inv=String(item.invoiceNo),awb=String(item.awb).toUpperCase();
-      // Verify BOTH order ID and invoice ID, not AWB alone.
-      const original=await env.DB.prepare(
-        'SELECT s.awb,s.status,i.invoice_no FROM gstdesk_shipments s JOIN gstdesk_meesho_invoices i ON i.business_id=s.business_id AND i.invoice_no=s.invoice_no WHERE s.business_id=? AND s.suborder_id=? AND s.invoice_no=? AND i.document_type=? LIMIT 1'
-      ).bind(who.businessId,id,inv,'tax-invoice').first();
-      if(!original){results.push({suborderId:id,invoiceNo:inv,awb,outcome:'not_matched'});continue}
-      if(original.awb&&original.awb!==awb){results.push({suborderId:id,invoiceNo:inv,awb,outcome:'conflicting_existing_awb'});continue}
-      if(original.awb===awb){results.push({suborderId:id,invoiceNo:inv,awb,outcome:'already_saved'});continue}
-      if(original.status==='delivered'){results.push({suborderId:id,invoiceNo:inv,awb,outcome:'delivered_requires_review'});continue}
+    const results=[];
+    for(const item of normalized){
+      const {suborderId,awb,carrier,invoiceNo,sourcePdfSha256,sourceZipSha256,page}=item;
+      const original=await env.DB.prepare('SELECT awb,status,invoice_no FROM gstdesk_shipments WHERE business_id=? AND suborder_id=? LIMIT 1')
+        .bind(who.businessId,suborderId).first();
+      if(original&&invoiceNo&&original.invoice_no!==invoiceNo){
+        results.push({suborderId,awb,carrier,outcome:'invoice_suborder_mismatch'});continue;
+      }
+      if(original?.awb&&original.awb!==awb){
+        results.push({suborderId,awb,carrier,outcome:'conflicting_existing_awb'});continue;
+      }
+      const prior=await env.DB.prepare('SELECT suborder_id,awb,carrier FROM gstdesk_shipping_labels WHERE business_id=? AND (suborder_id=? OR awb=?) LIMIT 1')
+        .bind(who.businessId,suborderId,awb).first();
+      if(prior&&(prior.suborder_id!==suborderId||prior.awb!==awb||prior.carrier!==carrier)){
+        results.push({suborderId,awb,carrier,outcome:'conflicting_label_inventory'});continue;
+      }
+      const linkedInvoice=original?.invoice_no||null;
+      const matchStatus=linkedInvoice?'matched_invoice':'awaiting_invoice';
       try{
-        const save=await env.DB.prepare(
-          "UPDATE gstdesk_shipments SET carrier='valmo',awb=?,awb_source='user_shipping_label_pdf_text',awb_evidence_sha256=?,awb_set_at=COALESCE(awb_set_at,CURRENT_TIMESTAMP),status=CASE WHEN status='awaiting_awb' THEN 'not_checked' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE business_id=? AND suborder_id=? AND invoice_no=? AND awb IS NULL AND status!='delivered'"
-        ).bind(awb,item.sourceSha256,who.businessId,id,inv).run();
-        results.push({suborderId:id,invoiceNo:inv,awb,outcome:save.meta?.changes===1?'saved':'conflict_retry'});
+        await env.DB.prepare('INSERT OR IGNORE INTO gstdesk_shipping_labels (business_id,suborder_id,carrier,awb,source_pdf_sha256,source_page,source_zip_sha256,label_invoice_no,matched_invoice_no,match_status) VALUES (?,?,?,?,?,?,?,?,?,?)')
+          .bind(who.businessId,suborderId,carrier,awb,sourcePdfSha256,page,sourceZipSha256,invoiceNo||null,linkedInvoice,matchStatus).run();
+        if(!original){
+          results.push({suborderId,awb,carrier,outcome:prior?'already_saved_unmatched':'saved_awaiting_invoice'});
+          continue;
+        }
+        if(original.awb===awb){
+          results.push({suborderId,awb,carrier,outcome:'already_saved'});
+          continue; // Existing verified delivery states and dates remain immutable.
+        }
+        const saved=await env.DB.prepare(
+          "UPDATE gstdesk_shipments SET carrier=?,carrier_name=?,awb=?,awb_source='verified_shipping_label_local_import',awb_evidence_sha256=?,awb_set_at=COALESCE(awb_set_at,CURRENT_TIMESTAMP),status=CASE WHEN status='awaiting_awb' THEN 'not_checked' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE business_id=? AND suborder_id=? AND awb IS NULL AND status!='delivered'"
+        ).bind(carrier==='valmo'?'valmo':'other',carrier,awb,sourcePdfSha256,who.businessId,suborderId).run();
+        results.push({suborderId,awb,carrier,outcome:saved.meta?.changes===1?'saved':'conflict_retry'});
       }catch{
-        results.push({suborderId:id,invoiceNo:inv,awb,outcome:'duplicate_or_database_conflict'});
+        results.push({suborderId,awb,carrier,outcome:'database_conflict'});
       }
     }
     return response({manualImport:true,carrierStatusChecked:false,documentsStored:false,
-      saved:results.filter(r=>r.outcome==='saved').length,results});
+      saved:results.filter(r=>r.outcome==='saved').length,
+      savedAwaitingInvoice:results.filter(r=>r.outcome==='saved_awaiting_invoice').length,results});
   }
   if(path==='/api/shipping/check'&&request.method==='POST'){
     if(!hasWriteHeaders(request))return response({error:'invalid_request_origin'},403);
