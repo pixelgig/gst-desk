@@ -1,0 +1,32 @@
+name: GST Desk D1 persistence checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare/workers/gst-desk-preview/**'
+      - 'database/migrations/**'
+      - 'tests/cloud-state.test.mjs'
+      - '.github/workflows/cloud-state.yml'
+  pull_request:
+    paths:
+      - 'cloudflare/workers/gst-desk-preview/**'
+      - 'database/migrations/**'
+      - 'tests/cloud-state.test.mjs'
+      - '.github/workflows/cloud-state.yml'
+permissions:
+  contents: read
+jobs:
+  cloud-state:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check cloudflare/workers/gst-desk-preview/worker.js
+          node --check cloudflare/workers/gst-desk-preview/state-api.mjs
+          node --check cloudflare/workers/gst-desk-preview/cloud-state-client.mjs
+      - name: State API security and client tests
+        run: node --test tests/cloud-state.test.mjs
