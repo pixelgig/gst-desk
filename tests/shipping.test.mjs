@@ -144,3 +144,22 @@ test('returned parcel current event is never mistaken for successful delivery',(
  assert.equal(r.status,'returned');
  assert.equal(r.deliveredDateIST,null);
 });
+
+test('owner-confirmed Delhivery is shown as Delivered without fabricating a carrier delivery date',async()=>{
+ const base=fixture('not_checked');
+ base.carrier='other';base.carrier_name='delhivery';
+ base.awb='1490841583388220';
+ base.owner_confirmed_delivered=1;
+ base.owner_delivery_confirmed_at='2026-11-18 20:05:35';
+ base.delivered_at=null;base.delivered_date_ist=null;
+ const env={DB:{prepare(){return {bind(){return {all:async()=>({results:[base]})}}}}}};
+ const res=await shippingApi(request('/api/shipping/orders?filter=all'),env,who);
+ assert.equal(res.status,200);
+ const row=(await res.json()).items[0];
+ assert.equal(row.status,'delivered');
+ assert.equal(row.ownerConfirmedDelivered,true);
+ assert.equal(row.deliveredDateIST,null);
+ assert.equal(row.deliveredAt,null);
+ assert.equal(row.carrier,'delhivery');
+ assert.equal(row.ownerConfirmationRecordedAt,'2026-11-18 20:05:35');
+});
