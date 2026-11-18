@@ -76,3 +76,18 @@ test('no unsupported route leaks business data',async()=>{
   const x=await handleOverviewApi(req('/api/internal/private'),{DB:db()},who);
   assert.equal(x.status,404);
 });
+
+test('PDF printed GST total overrides per-component rounding without altering source',async()=>{
+  const dbVerified={prepare(){return {bind(){return {async first(){return {
+    ...sampleInvoice,invoice_no:'pdf-rounded',document_total_paise:18768,
+    details_json:JSON.stringify({productDescription:'Synthetic invoice',
+      pdfPrintedTaxTotalPaise:547,pdfPrintedTaxComponentsPaise:{cgst:274,sgst:274}})
+  }}}}}}};
+  const r=await handleOverviewApi(req('/api/invoices/pdf-rounded'),{DB:dbVerified},who);
+  assert.equal(r.status,200);
+  const v=(await r.json()).invoice;
+  assert.equal(v.taxPaise,547);
+  assert.equal(v.taxablePaise,18221);
+  assert.equal(v.taxBreakdownDifferencePaise,-1);
+  assert.equal(v.taxSource,'invoice_pdf_total_row');
+});
