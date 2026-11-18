@@ -990,3 +990,159 @@ Use synthetic/redacted fixtures for GitHub tests; real unredacted invoices/label
 Use invented customer identities and addresses; avoid committing identifiable original source PDF, seller credentials or private seller portal screenshots. The seller GSTIN used as a parser verification literal may be visible in current code; **do not copy it into new fixtures or documentation without a need-to-know and repository privacy review**. Public tests can inject test-configured seller identity rather than duplicate a real identifier. Date tests should set explicit time and timezone and avoid depending on “today”.
 
 ---
+
+## 17. Project decision log and source provenance
+
+These are concise *reconstructed decisions*, not transcripts. Exact raw conversation exports are not available in this document's source inspection. When a decision conflicts with a more recent direct user instruction, the direct instruction takes priority.
+
+| Approximate date / conversation area | Decision or request | Current interpretation |
+| --- | --- | --- |
+| 15–16 Nov 2026, initial GST filing plan | Keep a completely free, private online GST tool for wife's registered NIVIDHI resale business; Meesho primary; user handles finance/GST. | Existing GST Desk, not a general accounting startup; ₹0 recurring budget and privacy. |
+| 15–16 Nov, GST logic | Two Meesho source ZIPs (GST report and tax-invoice ZIP) are the priority for correct matching and GSTR-1 JSON. | Source documents, invoice dates, credit notes, HSN/POS, rounding and human-reviewed export are core, not optional. |
+| 15–16 Nov, input purchases | Almost all resale products are bought without GST invoices. | Track true costs; no fake ITC or purchased-invoice fabrication. |
+| 16–17 Nov, cloud and platform | Use existing GitHub pixelgig/gst-desk and Cloudflare gst.nividhi.in; preserve all 16 tools, make online and cross-device; new feature work is in same app. | Main branch source and existing Worker/D1; additive changes only. |
+| 16–17 Nov, enterprise Codex plan | Upgrade 16 existing workspaces and propose an additional Order Intake & Document Vault. | Scope/roadmap request, not proof every enterprise acceptance criterion shipped. |
+| 17–18 Nov, GST/Meesho evidence | Persist September filed summaries and Meesho parsed original data; preserve cross-period invoice, PDF printed tax and archive source. | D1 historical dataset and file/provenance rules, never live order interpretation. |
+| 18 Nov, Alexa | Integrate Hindi Alexa skill with existing GST Desk and D1, not a new standalone app; user wants natural business questions. | Eight Hindi custom intents in repo, API source prepared; no legitimate “today’s Meesho orders” answer without live feed; no always-listening arbitrary command interception guarantee. |
+| 18 Nov, Valmo | Saved orders must load quickly; no automatic carrier requests; show two categories Delivered/In Transit and hide individual rows until tapped. | Snapshot/bootstrap first paint; only explicit Check triggers Valmo network. |
+| 18 Nov, Delhivery | Treat supplied owner-confirmed Delhivery completions as delivered in headline without inventing carrier dates. | Distinct owner_confirmation fields, combined delivered count, date provenance. |
+| 18 Nov, importer | Restore a visible, independent manual Meesho shipping-label PDF/ZIP parser within Valmo workspace and validate parsed evidence before D1 save. | Client extraction + server validation; no original PDF upload; always visible uploader. |
+| 18 Nov, homepage/theme | Preserve original full business D1 summary, clickable logo, modern premium UI, icons and performance. | Eight KPIs + original workspace directory, safe DOM/SVG and no heavyweight first-paint dependencies. |
+| 18 Nov, recurring automation conversation | Primary future automation is photo-based AI listing for Meesho/Flipkart/Amazon bulk templates via Telegram. | Product plan; Gemini first, Cloudflare AI second, genuinely free LLM option third; small business quota-conscious approach. |
+| 18–19 Nov, regression incident | Old homepage reappeared, Valmo importer vanished despite latest commits. | Global section CSS and compiled inlined JS helper; fixed in source and new production deployment confirmed during prior repair. |
+| 19 Nov, current handover request | Create comprehensive brain.md on main so any future AI can learn the project before editing. | This document, maintained with future architectural/business changes. |
+
+### 17.1 Useful historical commits (not deployment promises)
+
+- **226b7c0** — correct compiled client helper in HTML and scope global section visibility so uploader/summary render.
+- **f23fa552** — regression test of those issues.
+- **97063dc0** — remove duplicate “IST” in server shipping snapshot.
+- **51e58bb3** — eight interactive KPI cards and lightweight SVG icons.
+- **f0987346** — defer unnecessary legacy ZIP/Excel/PDF libraries at first paint.
+- **1b90ef70** — restore visible Valmo manual PDF/ZIP import flow and deterministic preview.
+- **32bbb506** — validate seller, invoice date, total and tax source evidence at D1 label-import boundary.
+- **dcd95724 / 32fcef7f** — clickable NIVIDHI header and premium lightweight design.
+- **75ca6f6d / bfb8bfe4** — wide refresh, two category cards and server fallback.
+- **a789f4f3** — server-rendered private summary first paint.
+- **83fd3598** — invoice grouping by document issue month rather than source ZIP month.
+- **9801484c** — verified delivery counts for read-only Hindi voice integration.
+
+GitHub browse format: **https://github.com/pixelgig/gst-desk/commit/COMMIT_SHA**. Inspect the actual diff before relying on a commit title; several rapid interim commits implemented and then adjusted the same feature.
+
+### 17.2 What earlier documents cannot prove
+
+- A saved Alexa interaction model is not a deployed Amazon Skill or an Echo-tested experience.
+- A migrated SQL schema is not proof all legacy tools store normalized D1 data.
+- A passing unit suite is not proof the production mobile DOM is correct.
+- A GitHub commit is not proof the corresponding Worker version is active at gst.nividhi.in.
+- A PDF checksum and parsed invoice are not a stored copy of the PDF binary.
+- A “seller storefront scan” is not an authenticated private Meesho catalogue API.
+- An expected delivery ETA is not actual delivery.
+- A generated GSTR-1 JSON is not filed or GSTN accepted.
+- A “free tier” marketing claim is not a binding guarantee of zero cost at current quota.
+- An automated listing draft is not a live marketplace listing.
+
+## 18. Security, privacy and trust model
+
+### 18.1 Threats to consider
+
+1. **Unauthorized access to private GST, invoice or shipment records.** Require Cloudflare Access JWT validation and business membership for every private API, including new dashboards and bots.
+2. **Cross-tenant/owner data leakage.** Bind fixed authenticated business identity server-side, not client-supplied business_id.
+3. **CSRF / unintended writes.** Keep same-origin and dedicated write header plus actual authorization; use safe methods and revision/idempotency protection.
+4. **Script injection from imported PDFs/JSON/Meesho HTML.** Treat all external text as untrusted; use textContent, escaped HTML and safe JSON embedding. No dynamic innerHTML for source values.
+5. **SSRF through storefront URLs.** Strict HTTPS hostname/path allowlist, redirect control, response bounds and fetch timeout.
+6. **Malicious ZIP/PDF/Excel payloads.** File limits, entry count, decompression safety, parser isolation and conservative error handling; never indiscriminately upload unvalidated binaries.
+7. **Invented financial or AI facts.** Audit source, use deterministic calculations, schema validation, reference original figures and require owner confirmation for sensitive writes.
+8. **Credentials in public code.** All tokens, account IDs that grant power, secrets, customer data and private exports live outside repo; rotate any exposed values.
+9. **Unsafe agent autonomy.** A coding AI must not run live GST filings, overwrite returns, publish marketplace products, spend money or delete D1 without explicit business approval.
+10. **Mobile shared-device leakage.** Saved browser snapshots must be scoped to business and free of unnecessary customer PII; sign-out and recovery behavior needs design without destroying unsaved records.
+11. **Notification privacy.** Telegram/WhatsApp alerts should share minimal order metadata, not full buyer addresses or attached GST documents.
+12. **Voice ambiguity.** A household Echo does not know which family member is speaking; restrict financial disclosure and all voice writes without stronger identity.
+
+### 18.2 Trust tiers for facts
+
+**Tier A — verified external/source evidence:** original PDF tax invoice or filed return with checksum/source link, explicit carrier dated event, official authorized marketplace feed or user-confirmed product fact. **Tier B — derived deterministic calculations:** sums, paise conversion, import deduplication, stock/profit on complete source. **Tier C — contextual owner assertions:** Delhivery “delivered” without carrier event, reported purchase cost without supplier GST invoice. **Tier D — AI predictions/guesses:** photo description suggestions, forecasted cost/ETA, marketing copy. Persist provenance with any meaningful assertion; never silently upgrade C/D into A.
+
+### 18.3 Privacy-preserving AI listing guidance
+
+Prompt images might unintentionally contain identifying items. Minimize third-party API data, verify vendor retention policy, strip EXIF/location metadata where possible, mask private paper labels/addresses in frames, avoid embedding API keys in Telegram update logs, and delete stale drafts/images when no longer needed. AI copy must not imply guaranteed product material, purity or trademarks unsupported by the seller.
+
+## 19. Unified business object graph — target architecture, not shipped database schema
+
+The most useful conceptual model for future integration is:
+
+    NIVIDHI Business
+      ├─ MarketplaceAccount [Meesho | Flipkart | Amazon | own store]
+      ├─ Product / Variant / Internal SKU / StockMovement
+      ├─ Purchase / SupplierCost / InvoiceEvidence (may have NO eligible GST invoice)
+      ├─ ListingExport / PlatformCatalogueID / ApprovalRecord
+      └─ MarketplaceOrder / OrderLine (actual event + provenance)
+           ├─ TaxInvoice / CreditNote / GSTReportRow
+           ├─ Shipment / CarrierAWB / LabelEvidence / CarrierEvent
+           ├─ Return / RTO / Refund
+           ├─ SettlementRow / Fee / Deduction / BankPayout
+           └─ InventoryReservation / Depletion / Restock
+
+The above is a **normalization target**, not a claim each node exists as a D1 table in November 2026. Current D1 accurately implements parts of the tax invoice + Meesho report + shipments graph, while legacy workspaces implement other parts in browser state. Avoid using invoice_no as the global order ID: an order/suborder can map to invoices, credit notes and multiple event records. Define stable marketplace-scoped IDs and enforce business-specific uniqueness.
+
+**Cross-workspace contract ideas (future):** typed import payloads with source_hash and import_version, immutable source facts, idempotent event ingestion, outbound projections for summary read models, optimistic concurrency, append-only audit events, normalized money/date, explicit provenance and owner review. These concepts were requested in enterprise design discussions; implement incrementally, not as a risky rewrite.
+
+## 20. Final AI handover contract / prompt
+
+A future AI receiving **only this file** should be able to identify the real app and where to begin. However **do not treat the file as a substitute for current code access**. Use the following instructions at the start of each new AI coding session:
+
+> You are working on the **existing, public GitHub repository pixelgig/gst-desk, main**, for the private NIVIDHI/Chaudhary Enterprises e-commerce business. Production is **gst.nividhi.in** on the existing **gst-desk-preview** Cloudflare Worker and existing **gst-desk-db** D1. Read the complete **brain.md** first. Then verify latest main source, actual production deployment, D1 schema and relevant tests. Preserve every existing workspace, seller data, owner Cloudflare Access, no-cost constraints, private records, accurate financial provenance, mobile responsiveness and fast performance. Never spin up a replacement app or database, never claim historical invoices are live Meesho orders, never fabricate GST credit or carrier dates, and never turn a successful commit into a claim that production is deployed. For each task, identify file owners, propose a minimal change, create regression tests, validate compiled production HTML/JS and mobile behavior, and report verified versus incomplete work. If new platform/AI integrations are proposed, check actual quotas, terms, authenticated sources and owner approval before paid or irreversible actions.
+
+### Suggested feature implementation template
+
+For every feature or bug, record in the PR/commit or issue:
+
+**Business problem:** What tedious work or incorrect decision does this solve for NIVIDHI?  
+**Before behaviour:** Repro steps on existing website; reliable screenshot/source.  
+**Source of truth:** Exact import/evidence/API/table; not guessed.  
+**Touched files:** Paths and symbols from Section 11, with upstream/downstream dependencies.  
+**Privacy & auth:** Owner access, tenant scope, data retention and redaction.  
+**Financial proof:** Rupees/paise, tax date, return status, source and mismatch policy.  
+**API/data migration:** Additive versioned changes, idempotency, conflict strategy and rollback.  
+**Zero-cost proof:** Which free tier/API is used, current limits, how unexpected billing is prevented.  
+**Performance & mobile:** Initial requests, scripts, caching, responsiveness, accessibility.  
+**Tests:** Relevant unit/DOM/fixture tests, plus actual compiled Worker + browser smoke.  
+**Deployment:** Git SHA, Worker version, date and percentage, domain verified or source-only.  
+**Remaining gaps:** What remains manual, incomplete, blocked or unverified.  
+**Brain update:** Edit this handbook if behavior, architecture, routes, schema, source policy or roadmap changed.
+
+### “Never do” checklist
+
+- Never ask to rebuild everything from scratch merely because the Worker source is large.
+- Never overwrite one business's actual data with generic sample rows or fake tests.
+- Never change a delivery/return/date so a counter looks nicer.
+- Never count credit notes as sale invoices or count unverified products as stock.
+- Never call gross invoice value settlement or profit.
+- Never claim GST filing submitted after downloading JSON.
+- Never make the PDF importer dependent on opening a hidden tracking category.
+- Never make page render depend on unneeded CDN requests or live carrier calls.
+- Never disable Access, relax seller validation or expose PII to cure an importer error.
+- Never interpret a missing optional API field as zero if it means “not connected”.
+- Never add a paid platform/service or require a credit card without explicit instruction and free-limit verification.
+- Never announce “production fixed” solely from a main commit without checking actual deployment and UI.
+- Never proceed with a D1 migration just because its SQL file exists.
+- Never assume the Alexa simulator and Echo have been connected without evidence.
+- Never use GitHub as raw storage for private invoices, buyer labels, photo archives or database exports.
+
+### Definition of “complete” for the business
+
+A feature is complete only when it solves the owner's workflow **in the existing GST Desk**, correct source records persist securely across devices, mobile UX is visible and responsive, calculations and statuses are defensible, current tests pass, actual deployment is verified if requested, recurring spend remains ₹0, and the user is told plainly what still requires manual action.
+
+## 21. Maintenance notes for future authors
+
+- Update **brain.md** whenever a migration, route, significant UI architecture, marketplace adapter, model provider, security control, new workspace, or important user decision changes.
+- Correct out-of-date status statements instead of appending contradictions indefinitely. Dated history should remain, but the “current state” must be current.
+- Keep source maps aligned with file moves; if worker.js gets modularized, rewrite the navigation section.
+- Keep this handbook **PUBLIC-safe**. Real customer/invoice archives, secrets, tokens, private database IDs that are not already safely public, Access assertions, and raw personal documents never belong here.
+- Use GitHub blame/history and actual deployment checks when two agents disagree. Document conflict with source rather than inventing a resolution.
+- Promote proposed integrations to “implemented” only after code, operational configuration, tests, and real acceptance are verified.
+- Maintain a separate owner-private runbook for credential names/rotation, detailed account identifiers, data backup locations and real invoices if needed. Do not mix that with this public repository.
+- The repository’s operational notes were authored at different times; cross-check them against code and this brain file rather than treating all older wording as up to date.
+- Provide small, truthful progress updates during long implementation tasks, but never leave the owner with only an unverified promise of background work.
+
+**End of initial comprehensive handover snapshot — 19 November 2026.**
