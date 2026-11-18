@@ -113,6 +113,103 @@ function gstDeskShippingClient(){
    try{const r=await safeRequest('/api/shipping/orders?filter='+encodeURIComponent(listFilter.value));drawOrders(r.items||[]);if(r.hasMore)rows.append(el('p','nv-track-note','Showing first 50 records; apply a narrower status filter.'))}
    catch(e){rows.replaceChildren(el('p','nv-track-error','Cannot load shipments: '+e.message))}
  }
+
+ async function loadPdfLibrary(){
+   if(window.pdfjsLib)return window.pdfjsLib;
+   await new Promise((resolve,reject)=>{
+     const script=document.createElement('script');
+     script.src='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+     script.onload=resolve;script.onerror=()=>reject(Error('PDF reader could not load'));
+     document.head.append(script);
+   });
+   if(!window.pdfjsLib)throw Error('PDF reader unavailable');
+   return window.pdfjsLib;
+ }
+ async function extractLabelPdf(bytes,sha,filename){
+   const pdfjs=await loadPdfLibrary();
+   pdfjs.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+   const pdf=await pdfjs.getDocument({data:new Uint8Array(bytes)}).promise;
+   const found=[],review=[];
+   if(pdf.numPages>100)throw Error('Shipping label PDF exceeds 100 pages');
+   for(let pageNo=1;pageNo<=pdf.numPages;pageNo++){
+     const page=await pdf.getPage(pageNo),tc=await page.getTextContent();
+     const text=tc.items.map(x=>x.str||'').join(' ').replace(/\s+/g,' ');
+     const awbs=[...new Set((text.match(/\bVL[A-Z0-9]{8,25}\b/gi)||[]).map(x=>x.toUpperCase()))];
+     const orders=[...new Set(text.match(/\b\d{15,20}_\d{1,4}\b/g)||[])];
+     const invoices=[...new Set((text.match(/\b87[a-z0-9]{3,30}\b/gi)||[]).map(x=>x.toLowerCase()))];
+     if(awbs.length===1&&orders.length===1&&invoices.length===1){
+       found.push({suborderId:orders[0],invoiceNo:invoices[0],awb:awbs[0],sourceSha256:sha,page:pageNo});
+     } else {
+       review.push({file:filename.slice(0,80),page:pageNo,
+         reason:!awbs.length?'No Valmo AWB on page':!orders.length?'No suborder ID on page':!invoices.length?'No invoice number on page':'Multiple possible identifiers; skipped'});
+     }
+   }
+   return {found,review};
+ }
+ async function extractLabelFiles(files,preview){
+   if(!files?.length)throw Error('Choose PDF shipping labels or a ZIP of labels');
+   if(files.length>30)throw Error('Too many files at once; select up to 30');
+   const pdfjs=await loadPdfLibrary(),entries=[];
+   void pdfjs;
+   for(const file of files){
+     if(file.size>25000000)throw Error('File too large (25 MB maximum)');
+     if(/\.zip$/i.test(file.name)){
+       if(!window.JSZip)throw Error('ZIP reader unavailable. Upload PDF labels directly.');
+       const archive=await window.JSZip.loadAsync(file);
+       for(const entry of Object.values(archive.files)){
+         if(entry.dir||!/\.pdf$/i.test(entry.name))continue;
+         if(entries.length>=50)throw Error('Maximum 50 PDF files per batch');
+         entries.push({name:entry.name.slice(0,100),bytes:await entry.async('arraybuffer')});
+       }
+     }else if(/\.pdf$/i.test(file.name)||file.type==='application/pdf'){
+       entries.push({name:file.name,bytes:await file.arrayBuffer()});
+     }else throw Error('Only PDF shipping labels and ZIP files are supported');
+   }
+   if(!entries.length)throw Error('No PDF shipping labels found');
+   const found=[],review=[];
+   for(const entry of entries){
+     if(entry.bytes.byteLength>15000000){review.push({file:entry.name,reason:'PDF over 15 MB; skipped'});continue}
+     const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',entry.bytes));
+     const sha=Array.from(hash,b=>b.toString(16).padStart(2,'0')).join('');
+     try{
+       const x=await extractLabelPdf(entry.bytes,sha,entry.name);
+       found.push(...x.found);review.push(...x.review);
+     }catch(e){review.push({file:entry.name,reason:'Could not parse PDF: '+e.message})}
+   }
+   const rows=[],orders=new Set(),awbs=new Set();
+   for(const r of found){
+     if(orders.has(r.suborderId)||awbs.has(r.awb)){
+       review.push({file:'Multiple files',reason:'Conflicting or repeated label '+r.suborderId+' / '+r.awb});
+       continue;
+     }
+     orders.add(r.suborderId);awbs.add(r.awb);rows.push(r);
+   }
+   if(rows.length>50)throw Error('Select a smaller batch (50 labels maximum)');
+   preview.replaceChildren();
+   preview.append(el('p','nv-track-note',rows.length+' unambiguous shipping labels extracted; '+review.length+' pages need review. Originals stay only on your device.'));
+   for(const r of rows)preview.append(el('p','nv-track-note','Order '+r.suborderId+' · Invoice '+r.invoiceNo+' · AWB '+r.awb));
+   for(const r of review.slice(0,12))preview.append(el('p','nv-track-error',r.file+(r.page?' page '+r.page:'')+': '+r.reason));
+   return {rows,review};
+ }
+ async function importLabels(input,preview){
+   if(busy)return;
+   const files=[...input.files];
+   busy=true;
+   try{
+     status.textContent='Reading selected shipping labels locally. No PDF is uploaded.';
+     const {rows}=await extractLabelFiles(files,preview);
+     if(!rows.length){status.textContent='No unambiguous shipping label mappings were found. Check the reviewed pages.';return}
+     if(!confirm('Save '+rows.length+' verified order + invoice + AWB mappings to D1? Original PDF/ZIP files will NOT be uploaded or stored. No carrier tracking check will run.'))return;
+     const result=await submit('/api/shipping/labels/import','POST',{items:rows});
+     const outcomes=result.results.map(x=>x.outcome);
+     status.textContent=result.saved+' AWBs saved. '+outcomes.filter(x=>x==='already_saved').length+' already saved. '+
+       outcomes.filter(x=>!['saved','already_saved'].includes(x)).length+' need manual review. No tracking statuses were fetched.';
+     preview.replaceChildren();
+     for(const r of result.results)preview.append(el('p','nv-track-note',r.invoiceNo+' · '+r.awb+' · '+r.outcome));
+     await summaryMarkup();await fetchOrders();
+   }catch(e){status.textContent='Label import could not complete: '+e.message}
+   finally{busy=false;input.value=''}
+ }
  function mountValmo(){
    const section=document.getElementById('valmo');if(!section)return;
    const legacy=section.querySelector(':scope > .card');
@@ -123,6 +220,13 @@ function gstDeskShippingClient(){
    tracker.append(el('h2','','Valmo Tracking · Saved orders'));
    tracker.append(el('p','','All invoice-linked orders are preloaded in D1. Enter confirmed AWBs from Meesho shipping labels, then click Check Status only when needed.'));
    tracker.append(el('p','nv-track-note','No automatic checks. Verified delivered shipments remain in D1 and are excluded from future checks. Unknown AWBs/statuses stay unknown.'));
+   const importBox=el('div','nv-track-detail');
+   importBox.append(el('strong','','Import Meesho shipping-label PDFs'));
+   importBox.append(el('p','nv-track-note','Choose Sub Order Labels PDFs (or ZIP of those labels). The AWB is above the barcode. Tax-invoice-only ZIPs have no AWB. Parsing happens in this browser; original files are never uploaded or stored.'));
+   const labels=el('input');labels.type='file';labels.multiple=true;labels.accept='.pdf,.zip,application/pdf,application/zip';labels.setAttribute('aria-label','Choose shipping labels PDFs or ZIP');
+   const preview=el('div');preview.setAttribute('aria-live','polite');
+   importBox.append(labels,btn('Parse & Save Shipping Labels',()=>importLabels(labels,preview)),preview);
+   tracker.append(importBox);
    const bar=el('div','nv-track-actions');
    bar.append(btn('Check Status · Pending AWBs',()=>checkStatus('pending')));
    listFilter=el('select');listFilter.setAttribute('aria-label','Filter saved shipments');
