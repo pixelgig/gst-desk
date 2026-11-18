@@ -29,37 +29,51 @@ export function parseValmoCarrierResult(data,awb){
   if(!data||typeof data!=='object'||data.success!==true)return {ok:false,error:'carrier_not_confirmed'};
   if(data.tracking_id&&String(data.tracking_id).toUpperCase()!==awb)return {ok:false,error:'carrier_awb_mismatch'};
   if(data.awb&&String(data.awb).toUpperCase()!==awb)return {ok:false,error:'carrier_awb_mismatch'};
-  const top=safeLabel(data.main_status?.description||data.main_status?.display_name||data.main_status?.status);
-  const events=(Array.isArray(data.tracking)?data.tracking:[]).flatMap(e=>[
-    e,...(Array.isArray(e.sub_status_list)?e.sub_status_list:[])
-  ]).slice(0,200);
-  const clean=events.map(e=>({
+  const rawMain=data.main_status||{};
+  const top=safeLabel(rawMain.description||rawMain.display_name||rawMain.status);
+  const mainCode=safeLabel(rawMain.status).toUpperCase();
+  const sourceEvents=Array.isArray(data.tracking)?data.tracking:[];
+  const events=sourceEvents.flatMap(e=>[e,...(Array.isArray(e.sub_status_list)?e.sub_status_list:[])]).slice(0,200);
+  const detailed=events.map(e=>({
     label:safeLabel(e.display_name||e.description||e.status||e.movement_type),
+    code:safeLabel(e.status||e.movement_type).toUpperCase(),
+    current:e.is_current===true,
     date:verifiedEventDate(e.date||e.timestamp||e.event_time)
   })).filter(e=>e.label);
-  const order=[...clean].sort((a,b)=>(b.date?.getTime()||0)-(a.date?.getTime()||0));
+  const ordered=[...detailed].sort((a,b)=>(b.date?.getTime()||0)-(a.date?.getTime()||0));
+  const current=detailed.filter(e=>e.current);
+  const currentText=current.map(e=>e.label+' '+e.code).join(' ').toLowerCase();
   const text=top.toLowerCase();
   let status='needs_review';
-  if(/returned to seller|return delivered|rto delivered|rto complete/.test(text))status='returned';
-  else if(/\bdelivered\b/.test(text)&&!/not delivered|undelivered|delivery failed|returned|return to origin/.test(text))status='delivered';
-  else if(/out for delivery/.test(text))status='out_for_delivery';
+  // Top-level description is authoritative for delivery/return; nested is_current
+  // provides the more specific transit stage that Valmo displays on its page.
+  if(/return(ed)? to seller|rto delivered|rto complete|return to origin/.test(text)||
+     /ORDER_RETURNED_TO_SELLER/.test(currentText))status='returned';
+  else if((mainCode==='ORDER_DELIVERED'||/\bdelivered\b/.test(text))&&
+          !/not delivered|undelivered|delivery failed|returned/.test(text))status='delivered';
+  else if(/out for delivery/.test(currentText)||/ORDER_OUT_FOR_DELIVERY/.test(currentText)||
+          /out for delivery/.test(text))status='out_for_delivery';
+  else if(/delivery failed|attempt failed|ORDER_DELIVERY_FAILED/.test(text+' '+mainCode))status='delivery_failed';
   else if(/on the way|on its way|in transit|shipped|reached.*hub|left.*hub|picked up|dispatched/.test(text))status='in_transit';
-  else if(/delivery failed|attempt failed/.test(text))status='delivery_failed';
-  // Some Valmo API versions report ORDER_CONFIRMED as the machine code while
-  // the human-readable main_status.description says 'On the way'.
-  // Never infer transit from the machine code alone; require visible label or a dated shipped/hub event.
-  if(status==='needs_review'&&order.some(e=>e.date&&/\bshipped\b|\b(reached|left)\b.*\bhub\b/i.test(e.label)))status='in_transit';
-  let deliveryDate=null;
+  else if(ordered.some(e=>e.date&&/shipped|reached.*hub|left.*hub/i.test(e.label)))status='in_transit';
+  const deliveryEvent=ordered.find(e=>(e.code==='ORDER_DELIVERED'||/\bdelivered\b/i.test(e.label))&&
+    !/not delivered|return|failed/i.test(e.label)&&e.date);
+  let deliveredAt=null;
   if(status==='delivered'){
-    deliveryDate=order.find(e=>/\bdelivered\b/i.test(e.label) &&
-      !/not delivered|return|failed/i.test(e.label) && e.date)?.date||null;
-    if(!deliveryDate)status='needs_review'; // Never claim a precise delivery date without evidence.
+    // Never fabricate actual delivery date from expected-date text.
+    if(!deliveryEvent)status='needs_review';
+    else deliveredAt=deliveryEvent.date;
   }
-  return {ok:true,status,description:top||'Carrier result needs review',
-    deliveredAt:deliveryDate?deliveryDate.toISOString():null,
-    deliveredDateIST:deliveryDate?formatIstDate(deliveryDate):null,
-    lastEventAt:order.find(e=>e.date)?.date?.toISOString()||null,
-    events:order.slice(0,40).map(e=>({label:e.label,date:e.date?e.date.toISOString():null}))};
+  const expectation=safeLabel(rawMain.display_name||'');
+  const estimatedDeliveryText= /^delivery by\b/i.test(expectation)?expectation:null;
+  return {ok:true,status,
+    description:status==='out_for_delivery'?'Out for Delivery':(top||'Carrier status needs review'),
+    estimatedDeliveryText,
+    deliveredAt:deliveredAt?.toISOString()||null,
+    deliveredDateIST:deliveredAt?formatIstDate(deliveredAt):null,
+    lastEventAt:ordered.find(e=>e.date)?.date?.toISOString()||null,
+    events:ordered.slice(0,40).map(e=>({label:e.label,date:e.date?.toISOString()||null,current:e.current}))
+  };
 }
 async function checkValmo(awb){
   const upstream=new URL('https://www.valmo.in/api/valmo-web/track-order');
@@ -72,7 +86,7 @@ async function checkValmo(awb){
   if(!verified.ok)throw Error(verified.error);
   return verified;
 }
-const shipmentColumns='s.suborder_id,s.invoice_no,s.carrier,s.carrier_name,s.awb,s.awb_source,s.awb_evidence_sha256,s.status,s.status_description,s.delivered_at,s.delivered_date_ist,s.last_checked_at,s.last_event_at,s.last_check_error,s.events_json,i.order_date,i.document_date,i.document_total_paise,i.details_json';
+const shipmentColumns='s.suborder_id,s.invoice_no,s.carrier,s.carrier_name,s.awb,s.awb_source,s.awb_evidence_sha256,s.status,s.status_description,s.delivered_at,s.delivered_date_ist,s.last_checked_at,s.last_event_at,s.last_check_error,s.estimated_delivery_text,s.events_json,i.order_date,i.document_date,i.document_total_paise,i.details_json';
 const view=record=>{
   let inv={};try{inv=JSON.parse(record.details_json||'{}')}catch{}
   let timeline=[];try{timeline=JSON.parse(record.events_json||'[]')}catch{}
@@ -82,7 +96,7 @@ const view=record=>{
     statusDescription:record.status_description,
     deliveredAt:record.delivered_at,deliveredDateIST:record.delivered_date_ist,
     lastCheckedAt:record.last_checked_at,lastEventAt:record.last_event_at,
-    lastCheckError:record.last_check_error,trackingEvents:timeline,
+    lastCheckError:record.last_check_error,estimatedDeliveryText:record.estimated_delivery_text||null,trackingEvents:timeline,
     invoiceDate:record.document_date,orderDate:record.order_date,
     invoiceValuePaise:Number(record.document_total_paise||0),
     productDescription:String(inv.productDescription||'').slice(0,220),
@@ -259,11 +273,11 @@ export async function shippingApi(request,env,who){
             error:'carrier_status_or_delivery_date_not_fully_verified'});
           continue;
         }
-        const save=await env.DB.prepare("UPDATE gstdesk_shipments SET status=?,status_description=?,delivered_at=?,delivered_date_ist=?,last_checked_at=CURRENT_TIMESTAMP,last_event_at=?,last_check_error=NULL,last_status_source='valmo_on_demand',events_json=?,updated_at=CURRENT_TIMESTAMP WHERE business_id=? AND suborder_id=? AND awb=? AND status NOT IN ('delivered','returned')").bind(
+        const save=await env.DB.prepare("UPDATE gstdesk_shipments SET status=?,status_description=?,delivered_at=?,delivered_date_ist=?,estimated_delivery_text=?,last_checked_at=CURRENT_TIMESTAMP,last_event_at=?,last_check_error=NULL,last_status_source='valmo_on_demand',events_json=?,updated_at=CURRENT_TIMESTAMP WHERE business_id=? AND suborder_id=? AND awb=? AND status NOT IN ('delivered','returned')").bind(
           verified.status,verified.description,verified.deliveredAt,verified.deliveredDateIST,
-          verified.lastEventAt,JSON.stringify(verified.events),who.businessId,row.suborder_id,row.awb).run();
+          verified.estimatedDeliveryText,verified.lastEventAt,JSON.stringify(verified.events),who.businessId,row.suborder_id,row.awb).run();
         results.push({suborderId:row.suborder_id,awb:row.awb,checked:true,saved:save.meta?.changes===1,
-          status:verified.status,deliveredDateIST:verified.deliveredDateIST});
+          status:verified.status,deliveredDateIST:verified.deliveredDateIST,estimatedDeliveryText:verified.estimatedDeliveryText});
       }catch(e){
         // Errors don't overwrite the previous verified status or invent a date.
         results.push({suborderId:row.suborder_id,awb:row.awb,checked:false,saved:false,error:'carrier_tracking_unavailable'});
