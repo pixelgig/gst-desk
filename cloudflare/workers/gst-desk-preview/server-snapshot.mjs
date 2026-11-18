@@ -26,7 +26,7 @@ export function shippingFallbackHTML(snapshot){
     '<span style="font-size:23px">'+icon+'</span><span>'+title+'</span>'+
     '<strong style="font-size:26px;margin-left:auto">'+count+'</strong></summary>'+
     '<div>'+(!items.length?'<p>No shipments in this category.</p>':orderRows(items))+'</div></details>';
-  return '<p style="color:#607769;font-size:13px">Last fetched from D1: '+time+' IST · Saved snapshot</p>'+
+  return '<p style="color:#607769;font-size:13px">Last fetched from D1: '+time+' · Saved snapshot</p>'+
     '<button type="button" style="background:#137a63;color:white;display:block;width:100%;padding:15px;border:0;border-radius:12px;font-weight:750;font-size:17px" onclick="location.reload()">↻ Refresh Data</button>'+
     '<p style="font-size:12px;color:#64766a">Choose a category to view shipments. Carrier statuses are not checked automatically.</p>'+
     '<div id="nv-server-categories">'+
