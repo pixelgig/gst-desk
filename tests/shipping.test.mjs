@@ -27,7 +27,7 @@ const db=()=>{
      if(sql.includes('SELECT status,awb'))return {status:'awaiting_awb',awb:null};
      return fixture();
    },
-   async all(){if(sql.includes('carrier=')&&sql.includes('status!='))return {results:[]};return {results:[fixture()]}},
+   async all(){if(sql.includes('carrier=')&&sql.includes('status NOT IN'))return {results:[]};return {results:[fixture()]}},
    async run(){return {meta:{changes:1}}}
  }}}}};
 };
@@ -104,4 +104,43 @@ test('Valmo workspace and homepage tracking card stay visible under legacy secti
   assert.ok(!shippingClientJS.includes("target=el('section')"));
   assert.ok(shippingClientJS.includes("tracker.id='nv-shipping-tracker'"));
   assert.ok(shippingClientJS.includes("section.insertBefore(tracker,section.firstChild)"));
+});
+
+test('one-request bootstrap yields order rows plus verified counts, without courier calls',async()=>{
+ const env={DB:db()};
+ const res=await shippingApi(request('/api/shipping/bootstrap?filter=all'),env,who);
+ assert.equal(res.status,200);
+ const data=await res.json();
+ assert.equal(data.autoCheck,false);
+ assert.equal(data.counts.known_orders,24);
+ assert.equal(data.items.length,1);
+ assert.equal(data.items[0].invoiceNo,'87test0001');
+ assert.ok(env.DB.seen.every(x=>x.args[0]===businessId));
+});
+test('live Valmo API ORDER_CONFIRMED with On the way means in transit, not unverified',()=>{
+ const r=parseValmoCarrierResult({success:true,tracking_id:awb,main_status:{
+  status:'ORDER_CONFIRMED',description:'On the way',display_name:'Delivery by Sat, 21 Nov'
+ },tracking:[{status:'ORDER_SHIPPED',display_name:'Shipped',is_current:true,
+ timestamp:Date.UTC(2026,10,15,12,0)}]},awb);
+ assert.equal(r.status,'in_transit');
+ assert.equal(r.estimatedDeliveryText,'Delivery by Sat, 21 Nov');
+ assert.equal(r.deliveredAt,null);
+});
+test('nested is_current out-for-delivery stage wins over On the way headline',()=>{
+ const r=parseValmoCarrierResult({success:true,tracking_id:awb,main_status:{
+  status:'ORDER_CONFIRMED',description:'On the way',display_name:'Delivery by Thu, 19 Nov'
+ },tracking:[{display_name:'Shipped',status:'ORDER_SHIPPED',timestamp:Date.UTC(2026,10,15,5),sub_status_list:[
+  {display_name:'Out for Delivery',status:'ORDER_OUT_FOR_DELIVERY',is_current:true,timestamp:Date.UTC(2026,10,18,5)}
+ ]}]},awb);
+ assert.equal(r.status,'out_for_delivery');
+ assert.equal(r.estimatedDeliveryText,'Delivery by Thu, 19 Nov');
+ assert.equal(r.deliveredDateIST,null,'Expected date must never be a delivery date');
+});
+test('returned parcel current event is never mistaken for successful delivery',()=>{
+ const r=parseValmoCarrierResult({success:true,tracking_id:awb,
+   main_status:{status:'ORDER_DELIVERY_FAILED',description:'Order returned to seller',display_name:'Delivery Failed'},
+   tracking:[{status:'ORDER_RETURNED_TO_SELLER',display_name:'Returned to Seller',is_current:true,
+      timestamp:Date.UTC(2026,9,30,9,0)}]},awb);
+ assert.equal(r.status,'returned');
+ assert.equal(r.deliveredDateIST,null);
 });
