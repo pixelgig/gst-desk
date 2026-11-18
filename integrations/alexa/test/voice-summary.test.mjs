@@ -12,15 +12,18 @@ function makeEnv({ member = true, count = 3, db = true } = {}) {
   if (db) env.DB = {
     prepare(sql) {
       const isMembershipQuery = sql.includes('gstdesk_memberships');
-      assert.ok(isMembershipQuery || sql.includes('gstdesk_invoice_drafts'));
+      assert.ok(isMembershipQuery || sql.includes('gstdesk_invoice_drafts') || sql.includes('gstdesk_shipments'));
       return {
         bind(...args) {
           assert.equal(args[0], env.VOICE_BUSINESS_ID);
           if (isMembershipQuery) assert.equal(args[1], env.VOICE_OWNER_EMAIL);
           return {
             async first() {
-              return isMembershipQuery ? (member ? {allowed: 1} : null) :
-                {total: count, last_updated: '2026-11-18T04:00:00Z'};
+              if (isMembershipQuery) return member ? {allowed: 1} : null;
+              if (sql.includes('gstdesk_shipments') && sql.includes('lastDelivered')) return null;
+              if (sql.includes('gstdesk_shipments') && sql.includes('ORDER BY delivered_at')) return null;
+              if (sql.includes('gstdesk_shipments')) return {known_orders:24,verified_delivered:0,verified_in_transit:0,awaiting_awb:23};
+              return {total: count, last_updated: '2026-11-18T04:00:00Z'};
             },
           };
         },
@@ -76,8 +79,13 @@ test('only reports authorized read-only draft counts, never guesses sales/tax', 
   assert.equal(data.drafts.count, 17);
   assert.deepEqual(data.availableMetrics, {
     drafts: true, sales: false, profit: false, gstPayable: false,
-    ordersToday: false, pendingDeliveries: false,
+    ordersToday: false, pendingDeliveries: false, verifiedDeliveries: true,
   });
+  assert.equal(data.delivery.knownInvoicedOrders,24);
+  assert.equal(data.delivery.verifiedDelivered,0);
+  assert.equal(data.delivery.verifiedInTransit,0);
+  assert.equal(data.delivery.awaitingAwb,23);
+  assert.equal(data.delivery.lastDeliveredDateIST,null);
   assert.equal(data.orders.today, null);
   assert.equal(data.orders.pendingDeliveries, null);
   assert.equal(data.orders.timeZone, 'Asia/Kolkata');
@@ -95,6 +103,10 @@ test('Hindi interaction model has unique utterances and expected intent names', 
   assert.ok(intents.some(i => i.name === 'StatusIntent'));
   assert.ok(intents.some(i => i.name === 'TodayMeeshoOrdersIntent'));
   assert.ok(intents.some(i => i.name === 'PendingDeliveriesIntent'));
+  assert.ok(intents.some(i => i.name === 'VerifiedDeliveredIntent'));
+  assert.ok(intents.some(i => i.name === 'VerifiedTransitIntent'));
+  assert.ok(intents.some(i => i.name === 'LastDeliveryDateIntent'));
+  assert.ok(intents.some(i => i.name === 'UpdateDeliveryStatusIntent'));
   assert.ok(all.some(s => s.includes('मीशो')));
   assert.ok(all.some(s => s.includes('डिलीवर')));
   assert.ok(model.interactionModel.languageModel.invocationName.includes('डेस्क'));
