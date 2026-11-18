@@ -68,13 +68,13 @@ async function checkValmo(awb){
   if(!verified.ok)throw Error(verified.error);
   return verified;
 }
-const shipmentColumns='s.suborder_id,s.invoice_no,s.carrier,s.awb,s.awb_source,s.awb_evidence_sha256,s.status,s.status_description,s.delivered_at,s.delivered_date_ist,s.last_checked_at,s.last_event_at,s.last_check_error,s.events_json,i.order_date,i.document_date,i.document_total_paise,i.details_json';
+const shipmentColumns='s.suborder_id,s.invoice_no,s.carrier,s.carrier_name,s.awb,s.awb_source,s.awb_evidence_sha256,s.status,s.status_description,s.delivered_at,s.delivered_date_ist,s.last_checked_at,s.last_event_at,s.last_check_error,s.events_json,i.order_date,i.document_date,i.document_total_paise,i.details_json';
 const view=record=>{
   let inv={};try{inv=JSON.parse(record.details_json||'{}')}catch{}
   let timeline=[];try{timeline=JSON.parse(record.events_json||'[]')}catch{}
   return {
     suborderId:record.suborder_id,invoiceNo:record.invoice_no,
-    carrier:record.carrier,awb:record.awb,awbSource:record.awb_source||null,awbEvidenceSha256:record.awb_evidence_sha256||null,status:record.status,
+    carrier:record.carrier_name||record.carrier,awb:record.awb,awbSource:record.awb_source||null,awbEvidenceSha256:record.awb_evidence_sha256||null,status:record.status,
     statusDescription:record.status_description,
     deliveredAt:record.delivered_at,deliveredDateIST:record.delivered_date_ist,
     lastCheckedAt:record.last_checked_at,lastEventAt:record.last_event_at,
@@ -87,7 +87,7 @@ const view=record=>{
 };
 const digits=/^[0-9]{15,20}_\d{1,4}$/;
 async function counts(env,who){
- const sql="SELECT COUNT(*) AS known_orders,SUM(CASE WHEN awb IS NULL THEN 1 ELSE 0 END) AS awaiting_awb,SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) AS verified_delivered,SUM(CASE WHEN status IN ('in_transit','out_for_delivery') THEN 1 ELSE 0 END) AS verified_in_transit,SUM(CASE WHEN status='returned' THEN 1 ELSE 0 END) AS carrier_returned,SUM(CASE WHEN awb IS NOT NULL AND status!='delivered' THEN 1 ELSE 0 END) AS eligible_for_check,SUM(CASE WHEN strftime('%Y-%m',i.order_date)=strftime('%Y-%m',datetime('now','+5 hours','+30 minutes')) THEN 1 ELSE 0 END) AS invoiced_orders_this_month FROM gstdesk_shipments s JOIN gstdesk_meesho_invoices i ON i.business_id=s.business_id AND i.invoice_no=s.invoice_no WHERE s.business_id=?";
+ const sql="SELECT COUNT(*) AS known_orders,SUM(CASE WHEN awb IS NULL THEN 1 ELSE 0 END) AS awaiting_awb,SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) AS verified_delivered,SUM(CASE WHEN status IN ('in_transit','out_for_delivery') THEN 1 ELSE 0 END) AS verified_in_transit,SUM(CASE WHEN status='returned' THEN 1 ELSE 0 END) AS carrier_returned,SUM(CASE WHEN awb IS NOT NULL AND carrier='valmo' AND status!='delivered' THEN 1 ELSE 0 END) AS eligible_for_check,SUM(CASE WHEN strftime('%Y-%m',i.order_date)=strftime('%Y-%m',datetime('now','+5 hours','+30 minutes')) THEN 1 ELSE 0 END) AS invoiced_orders_this_month FROM gstdesk_shipments s JOIN gstdesk_meesho_invoices i ON i.business_id=s.business_id AND i.invoice_no=s.invoice_no WHERE s.business_id=?";
  const r=await env.DB.prepare(sql).bind(who.businessId).first();
  return Object.fromEntries(Object.entries(r||{}).map(([k,v])=>[k,Number(v||0)]));
 }
@@ -95,8 +95,21 @@ export async function shippingApi(request,env,who){
  const u=new URL(request.url),path=u.pathname;
  try{
   if(path==='/api/shipping/summary'&&request.method==='GET'){
-    return response({source:'D1 and verified manual Valmo checks',live:false,autoCheck:false,
-      counts:await counts(env,who)});
+    const [recordCounts,labelCounts]=await Promise.all([
+      counts(env,who),
+      env.DB.prepare("SELECT COUNT(*) AS total_labels,SUM(CASE WHEN match_status='matched_invoice' THEN 1 ELSE 0 END) AS labels_linked_to_invoice,SUM(CASE WHEN match_status='awaiting_invoice' THEN 1 ELSE 0 END) AS labels_awaiting_invoice,SUM(CASE WHEN carrier='valmo' THEN 1 ELSE 0 END) AS valmo_labels,SUM(CASE WHEN carrier='delhivery' THEN 1 ELSE 0 END) AS delhivery_labels FROM gstdesk_shipping_labels WHERE business_id=?").bind(who.businessId).first()
+    ]);
+    return response({source:'D1 and verified manual carrier records',live:false,autoCheck:false,
+      counts:{...recordCounts,...Object.fromEntries(Object.entries(labelCounts||{}).map(([k,v])=>[k,Number(v||0)]))}});
+  }
+  if(path==='/api/shipping/labels/unmatched'&&request.method==='GET'){
+    const result=await env.DB.prepare("SELECT suborder_id,carrier,awb,label_invoice_no,source_page,source_pdf_sha256,duplicate_label_copies FROM gstdesk_shipping_labels WHERE business_id=? AND match_status='awaiting_invoice' ORDER BY suborder_id").bind(who.businessId).all();
+    return response({items:(result.results||[]).map(x=>({
+      suborderId:x.suborder_id,carrier:x.carrier,awb:x.awb,
+      invoiceNo:x.label_invoice_no||null,matchStatus:'awaiting_invoice',
+      sourcePage:Number(x.source_page),labelCopies:Number(x.duplicate_label_copies),
+      evidenceSha256:x.source_pdf_sha256
+    })),count:(result.results||[]).length,carrierChecked:false});
   }
   if(path==='/api/shipping/orders'&&request.method==='GET'){
     const filters=new Set(['all','awaiting_awb','pending','delivered','returned']);
