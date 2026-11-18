@@ -100,6 +100,10 @@ const boot=()=>{
  if(overviewSnapshot){paint(overviewSnapshot.data);putCache(overviewSnapshot);showStamp()}
  else reload();
 };
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+// All required DOM elements are above the script injection point; do not wait
+// for unrelated legacy CDN libraries to finish before initializing the dashboard.
+if(document.getElementById('gstdesk-react-root'))boot();
+else if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
+else boot();
 }
 export const overviewClientJS='('+gstDeskOverviewClient.toString()+')();';
