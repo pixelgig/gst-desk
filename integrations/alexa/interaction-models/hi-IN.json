@@ -1,0 +1,49 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "जीएसटी डेस्क",
+      "intents": [
+        {
+          "name": "DraftCountIntent",
+          "slots": [],
+          "samples": [
+            "कितने ड्राफ्ट चालान हैं",
+            "ड्राफ्ट चालानों की संख्या बताओ",
+            "कितने अधूरे चालान हैं",
+            "कुल ड्राफ्ट कितने हैं",
+            "ड्राफ्ट बताओ",
+            "चालानों की संख्या बताओ"
+          ]
+        },
+        {
+          "name": "StatusIntent",
+          "slots": [],
+          "samples": [
+            "सिस्टम की स्थिति बताओ",
+            "जीएसटी डेस्क चल रहा है क्या",
+            "कनेक्शन की स्थिति बताओ",
+            "डेटा कनेक्शन चेक करो",
+            "डेस्क का स्टेटस बताओ"
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        }
+      ],
+      "types": []
+    }
+  }
+}
