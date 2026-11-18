@@ -104,6 +104,60 @@ const PendingDeliveriesHandler = {
   },
 };
 
+const VerifiedDeliveredHandler = {
+  canHandle: isIntent('VerifiedDeliveredIntent'),
+  async handle(input) {
+    try {
+      const d = await getSummary();
+      if (d.availableMetrics?.verifiedDeliveries === true &&
+          Number.isSafeInteger(d.delivery?.verifiedDelivered)) {
+        return say(input, 'जिन ऑर्डर का रिकॉर्ड जीएसटी डेस्क में है, उनमें ' +
+          d.delivery.verifiedDelivered + ' डिलीवरी की पुष्टि हो चुकी है। बाकी ऑर्डर की स्थिति अभी सत्यापित नहीं है।');
+      }
+    } catch {}
+    return say(input, 'डिलीवरी की पुष्टि वाला डेटाबेस अभी एलेक्सा से कनेक्ट नहीं है।');
+  },
+};
+const VerifiedTransitHandler = {
+  canHandle: isIntent('VerifiedTransitIntent'),
+  async handle(input) {
+    try {
+      const d = await getSummary();
+      if (d.availableMetrics?.verifiedDeliveries === true &&
+          Number.isSafeInteger(d.delivery?.verifiedInTransit)) {
+        return say(input, 'जीएसटी डेस्क में ' + d.delivery.verifiedInTransit +
+          ' पार्सल के ट्रांजिट में होने की पुष्टि हुई है। जिनका ए डब्ल्यू बी नहीं है, उन्हें रास्ते में नहीं गिना गया है।');
+      }
+    } catch {}
+    return say(input, 'अभी ट्रांजिट का सत्यापित रिकॉर्ड उपलब्ध नहीं है।');
+  },
+};
+const LastDeliveryDateHandler = {
+  canHandle: isIntent('LastDeliveryDateIntent'),
+  async handle(input) {
+    try {
+      const d = await getSummary();
+      if (d.availableMetrics?.verifiedDeliveries === true) {
+        if (d.delivery?.lastDeliveredDateIST &&
+            /^\d{4}-\d\d-\d\d$/.test(d.delivery.lastDeliveredDateIST)) {
+          return say(input, 'जीएसटी डेस्क के रिकॉर्ड में आखिरी पुष्टि की गई डिलीवरी ' +
+            d.delivery.lastDeliveredDateIST + ' को हुई थी।');
+        }
+        return say(input, 'अभी किसी ऑर्डर की डिलीवरी तारीख सत्यापित नहीं हुई है।');
+      }
+    } catch {}
+    return say(input, 'डिलीवरी की तारीख वाला रिकॉर्ड अभी एलेक्सा से नहीं जुड़ा है।');
+  },
+};
+const UpdateDeliveryStatusHandler = {
+  canHandle: isIntent('UpdateDeliveryStatusIntent'),
+  async handle(input) {
+    // Voice writes are intentionally disabled until the private voice endpoint,
+    // allowed Alexa account, and bearer-token owner authorization are tested.
+    return say(input, 'अभी डिलीवरी का अपडेट जीएसटी डेस्क में वैल्मो ट्रैकिंग के चेक स्टेटस बटन से किया जा सकता है। एलेक्सा से सुरक्षित अपडेट अभी लिंक होना बाकी है।');
+  },
+};
+
 const StatusHandler = {
   canHandle: isIntent('StatusIntent'),
   async handle(input) {
@@ -149,7 +203,8 @@ const ErrorHandler = {
 const internalHandler = Alexa.SkillBuilders.custom()
   .withSkillId(process.env.ALEXA_SKILL_ID || 'amzn1.ask.skill.UNCONFIGURED')
   .addRequestHandlers(
-    LaunchHandler, DraftCountHandler, StatusHandler, TodayMeeshoOrdersHandler, PendingDeliveriesHandler, HelpHandler,
+    LaunchHandler, DraftCountHandler, StatusHandler, TodayMeeshoOrdersHandler, PendingDeliveriesHandler,
+    VerifiedDeliveredHandler, VerifiedTransitHandler, LastDeliveryDateHandler, UpdateDeliveryStatusHandler, HelpHandler,
     StopHandler, FallbackHandler, UnhandledHandler)
   .addErrorHandlers(ErrorHandler)
   .lambda();
