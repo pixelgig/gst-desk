@@ -7,6 +7,7 @@ on:
       - 'database/migrations/**'
       - 'tests/cloud-state.test.mjs'
       - 'tests/overview.test.mjs'
+      - 'tests/shipping.test.mjs'
       - '.github/workflows/cloud-state.yml'
   pull_request:
     paths:
@@ -14,6 +15,7 @@ on:
       - 'database/migrations/**'
       - 'tests/cloud-state.test.mjs'
       - 'tests/overview.test.mjs'
+      - 'tests/shipping.test.mjs'
       - '.github/workflows/cloud-state.yml'
 permissions:
   contents: read
@@ -33,5 +35,7 @@ jobs:
           node --check cloudflare/workers/gst-desk-preview/cloud-state-client.mjs
           node --check cloudflare/workers/gst-desk-preview/overview-api.mjs
           node --check cloudflare/workers/gst-desk-preview/overview-client.mjs
+          node --check cloudflare/workers/gst-desk-preview/shipping-api.mjs
+          node --check cloudflare/workers/gst-desk-preview/shipping-client.mjs
       - name: State API security and client tests
-        run: node --test tests/cloud-state.test.mjs tests/overview.test.mjs
+        run: node --test tests/cloud-state.test.mjs tests/overview.test.mjs tests/shipping.test.mjs
