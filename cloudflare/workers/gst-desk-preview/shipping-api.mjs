@@ -86,13 +86,16 @@ async function checkValmo(awb){
   if(!verified.ok)throw Error(verified.error);
   return verified;
 }
-const shipmentColumns='s.suborder_id,s.invoice_no,s.carrier,s.carrier_name,s.awb,s.awb_source,s.awb_evidence_sha256,s.status,s.status_description,s.delivered_at,s.delivered_date_ist,s.last_checked_at,s.last_event_at,s.last_check_error,s.estimated_delivery_text,s.events_json,i.order_date,i.document_date,i.document_total_paise,i.details_json';
+const shipmentColumns='s.suborder_id,s.invoice_no,s.carrier,s.carrier_name,s.awb,s.awb_source,s.awb_evidence_sha256,s.status,s.status_description,s.delivered_at,s.delivered_date_ist,s.last_checked_at,s.last_event_at,s.last_check_error,s.estimated_delivery_text,s.owner_confirmed_delivered,s.owner_delivery_confirmed_at,s.events_json,i.order_date,i.document_date,i.document_total_paise,i.details_json';
 const view=record=>{
   let inv={};try{inv=JSON.parse(record.details_json||'{}')}catch{}
   let timeline=[];try{timeline=JSON.parse(record.events_json||'[]')}catch{}
   return {
     suborderId:record.suborder_id,invoiceNo:record.invoice_no,
-    carrier:record.carrier_name||record.carrier,awb:record.awb,awbSource:record.awb_source||null,awbEvidenceSha256:record.awb_evidence_sha256||null,status:record.status,
+    carrier:record.carrier_name||record.carrier,awb:record.awb,awbSource:record.awb_source||null,awbEvidenceSha256:record.awb_evidence_sha256||null,
+    status:Number(record.owner_confirmed_delivered)===1&&record.carrier_name==='delhivery'?'delivered':record.status,
+    ownerConfirmedDelivered:Number(record.owner_confirmed_delivered)===1&&record.carrier_name==='delhivery',
+    ownerConfirmationRecordedAt:record.owner_delivery_confirmed_at||null,
     statusDescription:record.status_description,
     deliveredAt:record.delivered_at,deliveredDateIST:record.delivered_date_ist,
     lastCheckedAt:record.last_checked_at,lastEventAt:record.last_event_at,
@@ -105,7 +108,7 @@ const view=record=>{
 };
 const digits=/^[0-9]{15,20}_\d{1,4}$/;
 async function counts(env,who){
- const sql="SELECT COUNT(*) AS known_orders,SUM(CASE WHEN awb IS NULL THEN 1 ELSE 0 END) AS awaiting_awb,SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) AS verified_delivered,SUM(CASE WHEN status IN ('in_transit','out_for_delivery') THEN 1 ELSE 0 END) AS verified_in_transit,SUM(CASE WHEN status='returned' THEN 1 ELSE 0 END) AS carrier_returned,SUM(CASE WHEN awb IS NOT NULL AND carrier='valmo' AND status NOT IN ('delivered','returned') THEN 1 ELSE 0 END) AS eligible_for_check,SUM(CASE WHEN strftime('%Y-%m',i.order_date)=strftime('%Y-%m',datetime('now','+5 hours','+30 minutes')) THEN 1 ELSE 0 END) AS invoiced_orders_this_month FROM gstdesk_shipments s JOIN gstdesk_meesho_invoices i ON i.business_id=s.business_id AND i.invoice_no=s.invoice_no WHERE s.business_id=?";
+ const sql="SELECT COUNT(*) AS known_orders,SUM(CASE WHEN awb IS NULL THEN 1 ELSE 0 END) AS awaiting_awb,SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) AS verified_delivered,SUM(CASE WHEN owner_confirmed_delivered=1 AND carrier_name='delhivery' AND status!='delivered' THEN 1 ELSE 0 END) AS owner_confirmed_delivered,SUM(CASE WHEN status='delivered' OR (owner_confirmed_delivered=1 AND carrier_name='delhivery') THEN 1 ELSE 0 END) AS total_delivered,SUM(CASE WHEN status IN ('in_transit','out_for_delivery') THEN 1 ELSE 0 END) AS verified_in_transit,SUM(CASE WHEN status='returned' THEN 1 ELSE 0 END) AS carrier_returned,SUM(CASE WHEN awb IS NOT NULL AND carrier='valmo' AND status NOT IN ('delivered','returned') THEN 1 ELSE 0 END) AS eligible_for_check,SUM(CASE WHEN strftime('%Y-%m',i.order_date)=strftime('%Y-%m',datetime('now','+5 hours','+30 minutes')) THEN 1 ELSE 0 END) AS invoiced_orders_this_month FROM gstdesk_shipments s JOIN gstdesk_meesho_invoices i ON i.business_id=s.business_id AND i.invoice_no=s.invoice_no WHERE s.business_id=?";
  const r=await env.DB.prepare(sql).bind(who.businessId).first();
  return Object.fromEntries(Object.entries(r||{}).map(([k,v])=>[k,Number(v||0)]));
 }
@@ -129,7 +132,8 @@ export async function shippingApi(request,env,who){
     let extra='',params=[who.businessId];
     if(filter==='awaiting_awb')extra=' AND s.awb IS NULL';
     else if(filter==='pending')extra=" AND s.awb IS NOT NULL AND s.status NOT IN ('delivered','returned')";
-    else if(filter==='delivered'||filter==='returned'){extra=' AND s.status=?';params.push(filter)}
+    else if(filter==='delivered'){extra=" AND (s.status='delivered' OR (s.owner_confirmed_delivered=1 AND s.carrier_name='delhivery'))"}
+    else if(filter==='returned'){extra=" AND s.status='returned'"}
     const itemsSQL='SELECT '+shipmentColumns+' FROM gstdesk_shipments s JOIN gstdesk_meesho_invoices i ON i.business_id=s.business_id AND i.invoice_no=s.invoice_no WHERE s.business_id=?'+extra+' ORDER BY i.order_date DESC,s.suborder_id DESC LIMIT 50';
     const labelsSQL="SELECT COUNT(*) AS total_labels,SUM(CASE WHEN match_status='matched_invoice' THEN 1 ELSE 0 END) AS labels_linked_to_invoice,SUM(CASE WHEN match_status='awaiting_invoice' THEN 1 ELSE 0 END) AS labels_awaiting_invoice,SUM(CASE WHEN carrier='valmo' THEN 1 ELSE 0 END) AS valmo_labels,SUM(CASE WHEN carrier='delhivery' THEN 1 ELSE 0 END) AS delhivery_labels FROM gstdesk_shipping_labels WHERE business_id=?";
     const [invoiceCounts,labelCounts,items]=await Promise.all([
@@ -160,7 +164,8 @@ export async function shippingApi(request,env,who){
     let extra='',params=[who.businessId];
     if(filter==='awaiting_awb')extra=' AND s.awb IS NULL';
     else if(filter==='pending')extra=" AND s.awb IS NOT NULL AND s.status!='delivered'";
-    else if(filter==='delivered'||filter==='returned'){extra=' AND s.status=?';params.push(filter)}
+    else if(filter==='delivered'){extra=" AND (s.status='delivered' OR (s.owner_confirmed_delivered=1 AND s.carrier_name='delhivery'))"}
+    else if(filter==='returned'){extra=" AND s.status='returned'"}
     const sql='SELECT '+shipmentColumns+' FROM gstdesk_shipments s JOIN gstdesk_meesho_invoices i ON i.business_id=s.business_id AND i.invoice_no=s.invoice_no WHERE s.business_id=?'+extra+' ORDER BY i.order_date DESC,s.suborder_id DESC LIMIT 50 OFFSET ?';
     const rows=await env.DB.prepare(sql).bind(...params,(page-1)*50).all();
     return response({filter,page,items:(rows.results||[]).map(view),hasMore:(rows.results||[]).length===50});
