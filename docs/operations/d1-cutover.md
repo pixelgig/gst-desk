@@ -1,85 +1,81 @@
-# GST Desk Cloudflare D1 cutover — same app and main branch
+# GST Desk Cloudflare D1 migration — existing project
 
-Status: **CODE PREPARED ONLY, NOT DEPLOYED**. Live site remains at https://gst.nividhi.in.
-The D1 database is named gst-desk-db. This document is not an authorization to
-overwrite stored customer/financial records or deploy untested changes.
+## Production state (18 November 2026)
 
-## Current state verified November 18, 2026
+**Deployed:** GST Desk `gst.nividhi.in` is now protected by an owner-only
+Cloudflare Access application named `GST Desk Private Workspace`. The existing
+`gst-desk-preview` Worker serves the database-backed compatibility frontend,
+authenticated D1 API and September Meesho historical summary.
 
-- Production Worker gst-desk-preview has NO D1 binding; staging API has DB.
-- Existing D1 schema has no users, memberships, businesses, drafts, or transactions.
-- The legacy Worker is a large inlined HTML application storing several workspaces
-  with localStorage. Browser data from different devices cannot be recovered from D1.
-- The user owns two September Meesho archives:
-  gst_4953898_9_2026.zip and
-  4953898_2026-09-01_2026-09-30_TAX_INVOICE.zip.
-- Original ZIP bytes are NOT available to this execution session. Do NOT claim
-  to have imported documents, invoices, or raw archives.
-- Filed GSTR-1/GSTR-3B September 2026 PDFs were read. Their summary can be
-  imported PRIVATELY after migration; never commit unredacted GSTIN, owner
-  contact details, invoice documents, or return values to the public repository.
+The D1 database is the **existing** `gst-desk-db`; no second database, repository
+or paid storage plan was created. Production Worker source and all schema
+migrations live in the existing repository's `main` branch.
 
-## Changes made in the existing project
+The Worker validates a Cloudflare Access JWT (signed RS256, audience and
+issuer verification, expiration and owner email), followed by an active
+business-owner membership check in D1.
 
-- Existing worker code now consumes an authenticated, D1-based adapter instead
-  of localStorage. Cached state is memory-only and keyed by the authenticated
-  business. A user may explicitly copy old localStorage keys into D1 after
-  seeing a confirmation; no automatic overwrite of existing cloud data.
-- New REST endpoints:
-  - GET /api/state — list tenant state and revisions
-  - PUT /api/state/:key — compare-and-swap update with origin check
-  - DELETE /api/state/:key — compare-and-swap delete with origin check
-  - GET /api/returns/summary?period=MMYYYY — filed return aggregate only
-- State writes warn when cloud sync fails; the page offers an emergency JSON
-  export. Unsaved changes warn before closing the page.
-- D1 migration database/migrations/0002_cloud_state_and_filed_returns.sql is
-  additive. ZIP/PDF binaries are not stored as SQL values.
-- wrangler.jsonc refers to the EXISTING D1 database, not a new database.
+### September 2026 import: verified persisted rows
 
-## Blocking prerequisites before live deployment
+- **2 source ZIP manifests** with SHA-256 checksums, not ZIP binaries
+- **12 Meesho sales**, **1 return**: source precision retained beside per-row paise
+- **14 invoice/credit-note metadata records**, including product descriptions,
+  HSN, order/document dates, SHA-256 hashes, and PDF-printed tax components
+- Of those documents, **13 are dated September** and **one invoice is dated
+  2026-10-01**, so do not count that invoice as issued in September
+- **2 filed-return summaries**, GSTR-1 and GSTR-3B, from previously supplied
+  September PDFs, preserving the filed totals independently from worksheets
+- Filed taxable outward value is ₹1,695.85; IGST ₹46.64, CGST ₹3.52 and SGST
+  ₹3.52. Row-by-row rounding gives differences of ₹0.01 taxable and ₹0.02 tax
+  against the filed totals. This is logged, not silently normalized.
 
-1. Back up the existing D1 database AND export the old browser-local data
-   from the browser where records currently exist.
-2. Apply the new D1 migration and verify constraints and existing schema.
-3. Provision the authenticated user/business/membership using a private,
-   audited seed — never a seed containing personal details in public Git.
-4. Protect gst.nividhi.in with Cloudflare Access and a strict owner-only
-   allow policy. The existing /admin policy is NOT sufficient for the root URL.
-5. Set runtime secrets/config securely on the Worker (NOT in GitHub):
-   ACCESS_ISSUER — exact team issuer origin
-   ACCESS_AUDIENCE — audience for the FULL SITE Access application
-   GST_OWNER_EMAIL — authorized operator email
-   GST_BUSINESS_ID — existing business ID in D1
-6. Validate the JWT verification with the real Access app. Test unauthorized
-   requests (401/403), expired/wrong-audience JWT, other tenant, double-write
-   conflict (409), old browser import, second browser login, and offline edits.
-7. Test all legacy workspaces and PDF imports in staging, including actual
-   ZIP/PDF parsing, navigation, backup exports and the 17-workspace PR #1.
-8. Only after those checks pass, deploy using a VERIFIED Wrangler config that
-   matches live routes, D1 IDs, Access policy and rollback version.
-9. Observe Cloudflare Worker logs and D1 metrics. Maintain a D1 backup/restore
-   procedure separate from Worker version rollback.
-10. Authenticate the Hindi Alexa integration independently before enabling
-    financial figures. Alexa shared-user IDs don't identify the actual speaker.
+**Original PDFs and ZIP binaries are not stored in D1.** Keep the originals,
+which were examined and hashed during this migration. A future archive/upload
+solution must avoid paid R2 activation and use authenticated access.
 
-## Data importing rules
+### Verification
 
-- Preserve original ZIPs and every embedded file hash in an audit manifest.
-- Parse all invoice PDFs and GST reports, validate month, invoice identity,
-  GSTIN, rates and paise; flag disagreements instead of altering filed returns.
-- September dates are determined by document date, not merely order date.
-- Keep filed returns and draft reconciliation separate, never auto-file GST.
-- Deduplicate by source checksum + suborder + invoice ID + document type.
-- No fake sales, costs, expenses, settlements, tax invoices or ITC claims.
-- Do not store large document binaries in D1; retain offline originals
-  until a no-cost document archive with adequate retention is configured.
-- Before activating the September import, obtain both original ZIP bytes in
-  an authorized readable attachment or from the user's browser file picker.
+- D1 SQL queries confirmed the imported row counts and intact records.
+- GitHub Actions tests validate syntax, data isolation, revision conflicts,
+  browser compatibility scripts and Hindi Alexa model source.
+- Unauthenticated request to direct workers.dev endpoint returned HTTP 403
+  `not_authorized`, not `cloud_configuration_incomplete`.
+- Unauthenticated custom-domain request redirected to private Cloudflare
+  Access login. The secure Worker and Access bindings were verified by API.
+- **An owner-signed-in end-to-end browser test is still required**. The
+  assistant cannot complete the user's one-time-passcode login from here.
 
-## Validation record
+### Remaining manual/operational actions
 
-Automated CI: .github/workflows/cloud-state.yml runs syntax, API isolation,
-revision conflict and legacy HTML script checks. CI is NOT a real browser,
-Cloudflare Access or D1 production validation.
+1. Open `https://gst.nividhi.in`, log in through Cloudflare Access with
+   the email allowed in your existing owner policy.
+2. Confirm the September cloud-import card appears in the Meesho workspace
+   and that it displays 12 sales, 1 return, and 14 document records.
+3. If the same phone/browser has older `localStorage` data, use the
+   **Import old browser records** action when shown. This is an explicit copy
+   into D1; existing cloud records are never silently overwritten.
+   **Do not clear browser data before verifying cloud save.**
+4. Confirm another authorized browser shows the same persistent records.
+5. Inspect the GST/Meesho workspaces and reconcile any discrepancies against
+   original invoices and filed returns. Imported records are historical;
+   there is no live Meesho API feed or present-day delivery status.
+6. Configure the existing Amazon Alexa-hosted skill separately with secure
+   read-only API access. Its handler can never infer today's Meesho counts
+   from historical September returns.
+7. Monitor D1 storage and query quotas; take periodic private exports/backups.
 
-No live production changes have been made by this source commit.
+### Deployment configuration
+
+- `wrangler.jsonc` binds the existing D1 and uses `keep_vars: true` to
+  preserve environment variables configured through Cloudflare.
+- The deployed Worker currently requires:
+  `DB`, `ACCESS_ISSUER`, `ACCESS_AUDIENCE`,
+  `GST_OWNER_EMAIL`, `GST_BUSINESS_ID`.
+  **Never commit owner email or credentials to the public repository**.
+- For future deployments, verify active Cloudflare Access application,
+  binding IDs, the secure environment variables, and the current
+  Worker version before pushing. Accidentally redeploying a version
+  without these settings will cause `cloud_configuration_incomplete`.
+- Keep the older Worker versions available for code rollback; rolling back
+  a Worker does **not** roll back D1 data. Avoid replacing imported financial
+  records with browser backups automatically.
