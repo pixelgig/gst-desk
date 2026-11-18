@@ -115,8 +115,11 @@ function gstDeskShippingClient(){
  }
  function mountValmo(){
    const section=document.getElementById('valmo');if(!section)return;
-   const legacy=section.querySelector(':scope > .card');if(legacy)legacy.style.display='none';// Old browser-only AWB tool is superseded by D1.
-   tracker=el('div');tracker.id='nv-shipping-tracker';
+   const legacy=section.querySelector(':scope > .card');
+   if(legacy?.querySelector('#valmo-awbs'))legacy.remove(); // Only remove the obsolete browser-only form, never the database shell.
+   tracker=section.querySelector(':scope > #nv-shipping-tracker');
+   if(!tracker){tracker=el('div');tracker.id='nv-shipping-tracker';section.insertBefore(tracker,section.firstChild)}
+   tracker.replaceChildren(); // Reuse the server-rendered D1 shell, including on reload.
    tracker.append(el('h2','','Valmo Tracking · Saved orders'));
    tracker.append(el('p','','All invoice-linked orders are preloaded in D1. Enter confirmed AWBs from Meesho shipping labels, then click Check Status only when needed.'));
    tracker.append(el('p','nv-track-note','No automatic checks. Verified delivered shipments remain in D1 and are excluded from future checks. Unknown AWBs/statuses stay unknown.'));
@@ -126,7 +129,7 @@ function gstDeskShippingClient(){
    [['all','All orders'],['awaiting_awb','Awaiting AWB'],['pending','Trackable (not delivered)'],['delivered','Delivered'],['returned','Returned to seller']].forEach(([v,l])=>{const option=el('option','',l);option.value=v;listFilter.append(option)});
    listFilter.onchange=fetchOrders;bar.append(listFilter);
    tracker.append(bar,status);rows=el('div');tracker.append(rows);
-   section.insertBefore(tracker,section.firstChild);summaryMarkup().then(fetchOrders);
+   summaryMarkup().then(fetchOrders);
  }
  const init=()=>{
    window.addEventListener('gstdesk:overview-loaded',e=>{activeOverview=e.detail;renderDashboard()});
