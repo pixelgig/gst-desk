@@ -6,20 +6,32 @@ const fmtMoney=x=>'₹'+(Number(x||0)/100).toLocaleString('en-IN',{minimumFracti
 export const embedJson=value=>JSON.stringify(value).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
 export function shippingFallbackHTML(snapshot){
   if(!snapshot?.data||!Array.isArray(snapshot.data.items))
-    return '<p>Saved shipment snapshot unavailable. Use Refresh Data to retry.</p><button type="button" onclick="location.reload()">Refresh Data</button>';
+    return '<p>Saved shipment snapshot unavailable. Refresh this page to retry D1.</p><button type="button" style="display:block;width:100%;padding:15px" onclick="location.reload()">↻ Refresh Data</button>';
   const d=snapshot.data,c=d.counts||{};
-  const summary='<p>Last fetched from D1: <strong>'+esc(stamp(snapshot.fetchedAt))+'</strong>. Saved snapshot; not live carrier tracking.</p>'+
-    '<p><strong>'+Number(c.known_orders||0)+'</strong> invoiced orders · <strong>'+Number(c.verified_delivered||0)+'</strong> verified delivered · '+
-    '<strong>'+Number(c.awaiting_awb||0)+'</strong> invoices without AWB.</p>'+
-    '<button type="button" onclick="location.reload()">Refresh Data</button>';
-  const orders=d.items.slice(0,50).map(r=>
-    '<article style="border:1px solid #dfebe2;border-radius:12px;padding:12px;margin:10px 0"><strong>Order '+esc(r.suborderId)+'</strong>'+
-    '<p>Invoice '+esc(r.invoiceNo)+' · '+esc(r.orderDate||'Date unavailable')+' · '+fmtMoney(r.invoiceValuePaise)+'</p>'+
-    '<p>'+esc(r.carrier||'Courier unknown')+' · '+esc(r.awb||'AWB not supplied')+' · '+esc(r.status||'Unverified')+'</p>'+
-    (r.deliveredDateIST?'<p>Delivered '+esc(r.deliveredDateIST)+'</p>':'')+
-    (r.estimatedDeliveryText?'<p>ETA: '+esc(r.estimatedDeliveryText)+' (estimated)</p>':'')+
+  const time=esc(stamp(snapshot.fetchedAt));
+  const delivered=d.items.filter(x=>x.status==='delivered');
+  const transit=d.items.filter(x=>x.status==='in_transit'||x.status==='out_for_delivery');
+  const orderRows=rows=>rows.map(r=>
+    '<article style="border:1px solid #dfebe2;border-radius:12px;padding:12px;margin:10px 0">'+
+    '<strong>Order '+esc(r.suborderId)+'</strong>'+
+    '<p>Invoice '+esc(r.invoiceNo)+' · '+esc(r.orderDate||'Date unknown')+' · '+fmtMoney(r.invoiceValuePaise)+'</p>'+
+    '<p>'+esc(r.carrier||'Carrier unknown')+' · '+esc(r.awb||'AWB unavailable')+'</p>'+
+    '<p>'+((r.ownerConfirmedDelivered||r.status==='delivered'&&r.carrier==='delhivery'&&!r.deliveredDateIST)?
+      'Owner-confirmed · Actual delivery date unknown':
+      esc(r.status||'Unknown')+(r.deliveredDateIST?' · Delivered '+esc(r.deliveredDateIST):''))+'</p>'+
     '</article>').join('');
-  return summary+'<div id="nv-server-orders">'+orders+'</div>';
+  const details=(cat,icon,title,count,items)=>
+    '<details class="nv-server-category" style="border:1px solid #d3e5dd;border-radius:15px;padding:13px;margin:10px 0;background:#f8fcfa">'+
+    '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:12px;font-weight:700">'+
+    '<span style="font-size:23px">'+icon+'</span><span>'+title+'</span>'+
+    '<strong style="font-size:26px;margin-left:auto">'+count+'</strong></summary>'+
+    '<div>'+(!items.length?'<p>No shipments in this category.</p>':orderRows(items))+'</div></details>';
+  return '<p style="color:#607769;font-size:13px">Last fetched from D1: '+time+' IST · Saved snapshot</p>'+
+    '<button type="button" style="background:#137a63;color:white;display:block;width:100%;padding:15px;border:0;border-radius:12px;font-weight:750;font-size:17px" onclick="location.reload()">↻ Refresh Data</button>'+
+    '<p style="font-size:12px;color:#64766a">Choose a category to view shipments. Carrier statuses are not checked automatically.</p>'+
+    '<div id="nv-server-categories">'+
+    details('delivered','✅','Total Delivered',Number(c.total_delivered??c.verified_delivered??0),delivered)+
+    details('transit','🚚','Total In Transit',Number(c.verified_in_transit||0),transit)+'</div>';
 }
 export function overviewFallbackHTML(snapshot){
   if(!snapshot?.data?.counts)return '';
