@@ -347,6 +347,10 @@ function gstDeskShippingClient(){
    const overview=window.__gstDeskOverviewSnapshot;
    if(overview){activeOverview=overview;renderDashboard()}
  };
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+ // All required DOM elements are above the script injection point; do not wait
+// for unrelated legacy CDN libraries to finish before initializing the dashboard.
+if(document.getElementById('valmo'))init();
+else if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});
+else init();
 }
 export const shippingClientJS=labelParserBrowserJS+'('+gstDeskShippingClient.toString()+')();';
