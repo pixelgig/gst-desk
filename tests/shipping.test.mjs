@@ -94,3 +94,14 @@ test('client compiles; no scheduled tracking or file uploads',()=>{
   assert.ok(!shippingClientJS.includes('FileReader('));
   assert.ok(!shippingClientJS.includes('FormData('));
 });
+
+test('Valmo workspace and homepage tracking card stay visible under legacy section CSS',()=>{
+  // The old app uses \`section{display:none}\` and only displays \`section.on\`.
+  // A nested section inside #valmo/on disappears, even while the parent opens.
+  assert.ok(shippingClientJS.includes("tracker=el('div')"));
+  assert.ok(shippingClientJS.includes("target=el('div')"));
+  assert.ok(!shippingClientJS.includes("tracker=el('section')"));
+  assert.ok(!shippingClientJS.includes("target=el('section')"));
+  assert.ok(shippingClientJS.includes("tracker.id='nv-shipping-tracker'"));
+  assert.ok(shippingClientJS.includes("section.insertBefore(tracker,section.firstChild)"));
+});
