@@ -41,7 +41,8 @@ function gstDeskShippingClient(){
      ['Returns / credit notes',returns,'Recorded reversals; carrier status separate'],
      ['Delivered',c.verified_delivered,'Carrier-confirmed, with delivery date'],
      ['In transit',c.verified_in_transit,'Only carrier-confirmed status'],
-     ['Awaiting tracking ID',c.awaiting_awb,'Add AWB from shipping label'],
+     ['AWBs verified from labels',c.total_labels||0,'Nividhi orders only'],
+     ['Awaiting tracking ID',c.awaiting_awb,'Invoiced orders without labels'],
      ['Net invoiced sales',asMoney(money),'Not actual settlement or cash received'],
      ['Profit','Not calculated','Needs purchase costs and marketplace fees']
    ].forEach(x=>g.append(card(...x)));
@@ -53,7 +54,7 @@ function gstDeskShippingClient(){
    let div=tracker.querySelector('.nv-track-summary');
    if(!div){div=el('p','nv-track-summary');tracker.insertBefore(div,tracker.querySelector('.nv-track-actions'))}
    const c=shippingCounts;
-   div.textContent=c.known_orders+' invoiced orders · '+c.awaiting_awb+' awaiting AWB · '+c.verified_delivered+' verified delivered · '+c.verified_in_transit+' in transit · '+c.eligible_for_check+' eligible for manual check.';
+   div.textContent=c.known_orders+' invoiced orders · '+(c.total_labels||0)+' verified shipping-label AWBs · '+c.awaiting_awb+' invoiced orders missing AWB · '+c.verified_delivered+' verified delivered · '+c.verified_in_transit+' in transit · '+c.eligible_for_check+' eligible for manual Valmo checks.';
  }
  async function checkStatus(mode,suborderId){
    if(busy)return;busy=true;for(const b of tracker.querySelectorAll('button'))b.disabled=true;
