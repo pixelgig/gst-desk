@@ -54,6 +54,15 @@ export async function handleVoiceSummary(request, env) {
         sales: false,
         profit: false,
         gstPayable: false,
+        ordersToday: false,
+        pendingDeliveries: false,
+      },
+      orders: {
+        today: null,
+        pendingDeliveries: null,
+        asOf: null,
+        timeZone: 'Asia/Kolkata',
+        source: 'meesho_sync_not_connected',
       },
     });
   } catch {
