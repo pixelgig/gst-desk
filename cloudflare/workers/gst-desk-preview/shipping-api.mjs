@@ -157,24 +157,28 @@ export async function shippingApi(request,env,who){
       const suborderId=String(item.suborderId||''),awb=String(item.awb||'').trim().toUpperCase();
       const carrier=String(item.carrier||(/^VL\d{13}$/.test(awb)?'valmo':'')).toLowerCase();
       const invoiceNo=String(item.invoiceNo||'').trim().toLowerCase();
+      const sellerName=String(item.sellerName||'').trim();
       const sourcePdfSha256=String(item.sourceSha256||''),sourceZipSha256=String(item.sourceArchiveSha256||sourcePdfSha256);
       const page=Number(item.page);
       if(!digits.test(suborderId)||!['valmo','delhivery'].includes(carrier)||
         !(carrier==='valmo'?/^VL\d{13}$/.test(awb):/^\d{16}$/.test(awb))||
-        (invoiceNo&&!/^87[a-z0-9]{3,30}$/i.test(invoiceNo))||
+        (sellerName!=='NIDHI'||!/^87[a-z0-9]{3,30}$/i.test(invoiceNo))||
         !/^[a-f0-9]{64}$/.test(sourcePdfSha256)||!/^[a-f0-9]{64}$/.test(sourceZipSha256)||
         !Number.isSafeInteger(page)||page<1||page>10000)
         return response({error:'invalid_label_evidence'},400);
       if(orders.has(suborderId)||awbs.has(awb))return response({error:'ambiguous_duplicate_label_evidence'},409);
       orders.add(suborderId);awbs.add(awb);
-      normalized.push({suborderId,awb,carrier,invoiceNo,sourcePdfSha256,sourceZipSha256,page});
+      normalized.push({suborderId,awb,carrier,invoiceNo,sellerName,sourcePdfSha256,sourceZipSha256,page});
     }
     const results=[];
     for(const item of normalized){
       const {suborderId,awb,carrier,invoiceNo,sourcePdfSha256,sourceZipSha256,page}=item;
       const original=await env.DB.prepare('SELECT awb,status,invoice_no FROM gstdesk_shipments WHERE business_id=? AND suborder_id=? LIMIT 1')
         .bind(who.businessId,suborderId).first();
-      if(original&&invoiceNo&&original.invoice_no!==invoiceNo){
+      if(!original){
+        results.push({suborderId,awb,carrier,outcome:'invoice_not_found_in_nividhi'});continue;
+      }
+      if(original.invoice_no!==invoiceNo){
         results.push({suborderId,awb,carrier,outcome:'invoice_suborder_mismatch'});continue;
       }
       if(original?.awb&&original.awb!==awb){
