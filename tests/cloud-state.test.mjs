@@ -80,7 +80,7 @@ test('filed returns only allow valid periods',async()=>{
 });
 
 test('migrated HTML still contains parseable legacy inline scripts',()=>{
-  const worker=readFileSync(new URL('../cloudflare/workers/gst-desk-preview/worker.js',import.meta.url),'utf8');
+  const worker=readFileSync(new URL('../cloudflare/workers/gst-desk-preview/worker.d1-pending.mjs',import.meta.url),'utf8');
   const startMarker='return new Response(("<!doctype html>';
   const stopMarker='</html>").replace(';
   const start=worker.indexOf(startMarker);
