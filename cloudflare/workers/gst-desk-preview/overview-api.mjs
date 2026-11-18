@@ -56,8 +56,8 @@ export async function handleOverviewApi(request,env,who){
       if(!Number.isSafeInteger(page)||page<1||page>1000)return json({error:'invalid_page'},400);
       const size=30,offset=(page-1)*size;
       const [records,count]=await Promise.all([
-        rowList(env.DB.prepare('SELECT '+invoiceCols+' FROM gstdesk_meesho_invoices WHERE business_id=? AND substr(document_date,6,2)||substr(document_date,1,4)=? ORDER BY document_date DESC,invoice_no DESC LIMIT ? OFFSET ?').bind(who.businessId,period,size,offset)),
-        env.DB.prepare('SELECT COUNT(*) AS total FROM gstdesk_meesho_invoices WHERE business_id=? AND substr(document_date,6,2)||substr(document_date,1,4)=?').bind(who.businessId,period).first()
+        rowList(env.DB.prepare('SELECT '+invoiceCols+' FROM gstdesk_meesho_invoices WHERE business_id=? AND (substr(document_date,6,2)||substr(document_date,1,4))=? ORDER BY document_date DESC,invoice_no DESC LIMIT ? OFFSET ?').bind(who.businessId,period,size,offset)),
+        env.DB.prepare('SELECT COUNT(*) AS total FROM gstdesk_meesho_invoices WHERE business_id=? AND (substr(document_date,6,2)||substr(document_date,1,4))=?').bind(who.businessId,period).first()
       ]);
       return json({period,page,pageSize:size,total:num(count?.total),hasMore:offset+records.length<num(count?.total),items:records.map(normalizeInvoice)});
     }
