@@ -15,6 +15,47 @@ The live app remains https://gst.nividhi.in. This is a feature of the existing
 The current schema snapshot does not establish a business-scoped sales read model;
 Alexa **must not** guess these metrics. There is no voice mutation endpoint.
 
+## Meesho order voice commands (prepared, live data pending)
+
+The same Hindi skill now defines `TodayMeeshoOrdersIntent` and
+`PendingDeliveriesIntent` in `hi-IN.json` and in the Lambda handler.
+
+Examples after opening the skill or through a compatible Alexa Routine:
+- "आज मीशो पर कितने ऑर्डर आए?"
+- "कितने ऑर्डर डिलीवर होने बाकी हैं?"
+
+The read-only voice API contract includes:
+```json
+{
+  "availableMetrics": {"ordersToday": false, "pendingDeliveries": false},
+  "orders": {"today": null, "pendingDeliveries": null, "asOf": null,
+             "timeZone": "Asia/Kolkata", "source": "meesho_sync_not_connected"}
+}
+```
+
+**Never interpret `null` as zero.** Alexa states that Meesho sync is not yet
+connected. Once a trusted order feed is imported into D1, the backend may mark
+a metric available and supply a nonnegative integer. No SMS/email polling or
+undocumented Meesho API is assumed to exist.
+
+**Metric rules for eventual synchronization:** `ordersToday` counts unique
+Meesho order/sub-order IDs created on the current Asia/Kolkata calendar day.
+`pendingDeliveries` counts active unique orders not yet confirmed delivered;
+exclude cancelled and returned items and avoid counting shipment scans twice.
+Mark any stale/partial source explicitly and do not call it live data.
+
+**No-invocation experience:** A private Custom Skill does not automatically
+intercept all "Alexa, ..." requests. Alexa Routines can sometimes map selected
+phrases to a skill action where supported by the account/locale, but we must
+verify compatibility on the actual Hindi device. Do not promise universal
+invocation-free queries or automatic interpretation of any Meesho question.
+
+**Amazon console sync:** Updating GitHub does not automatically update the
+Amazon-hosted skill. Re-import `hi-IN.json`, build the model, and update the
+Alexa-hosted Lambda handler under the existing Amazon skill. Then set secrets
+in Amazon's supported secure environment/configuration mechanism. Never put
+API secrets in repository or screenshots.
+
 ## Existing project files
 
 - `cloudflare/workers/gst-desk-api-staging/worker.template.js`: existing staging API, now routes `GET /api/voice/summary`
