@@ -21,7 +21,7 @@ const db=()=>{
      seen.push({sql,params});
      return {
        async all(){
-         if(sql.includes('GROUP BY source_period'))return {results:[{period:'102026',documents:1,invoices:1,credit_notes:0,invoice_paise:10400,credit_paise:0}]};
+         if(sql.includes('GROUP BY period') && sql.includes(' AS period'))return {results:[{period:'102026',documents:1,invoices:1,credit_notes:0,invoice_paise:10400,credit_paise:0}]};
          if(sql.includes('gstdesk_filed_return_summaries'))return {results:[{tax_period:'092026',return_type:'GSTR-1',filed_on:'2026-10-10',taxable_paise:12000,igst_paise:300,cgst_paise:0,sgst_paise:0}]};
          if(sql.includes('gstdesk_meesho_report_rows'))return {results:[{period:'092026',document_kind:'sale',records:1,taxable_paise:10000,tax_paise:300}]};
          return {results:[sampleInvoice]};
