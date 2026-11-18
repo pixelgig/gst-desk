@@ -21,5 +21,10 @@ export function decoratePremiumHTML(html){
   const finder='<button data-tab="'+tab+'">';
   out=out.replace(finder,'<button data-tab="'+tab+'">'+svg(icon));
  }
+ // The legacy ZIP/XLSX/PDF helper libraries are needed only on user actions.
+ // Defer their network loading so they cannot block the HTML parser or first paint.
+ // Inline handlers bind before DOM ready and resolve helpers when clicked.
+ out=out.replace(/<script src="(https:\/\/cdn\.jsdelivr\.net\/npm\/(?:jszip|xlsx|pdfjs-dist)[^"]+)"><\/script>/g,
+   '<script defer src="$1"></script>');
  return out.replace('</style><header',premiumCSS+'</style><header');
 }
