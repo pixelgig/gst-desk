@@ -76,7 +76,11 @@ test('only reports authorized read-only draft counts, never guesses sales/tax', 
   assert.equal(data.drafts.count, 17);
   assert.deepEqual(data.availableMetrics, {
     drafts: true, sales: false, profit: false, gstPayable: false,
+    ordersToday: false, pendingDeliveries: false,
   });
+  assert.equal(data.orders.today, null);
+  assert.equal(data.orders.pendingDeliveries, null);
+  assert.equal(data.orders.timeZone, 'Asia/Kolkata');
   assert.ok(!JSON.stringify(data).includes('owner@example.test'));
 });
 
@@ -89,5 +93,9 @@ test('Hindi interaction model has unique utterances and expected intent names', 
   assert.equal(new Set(all).size, all.length);
   assert.ok(intents.some(i => i.name === 'DraftCountIntent'));
   assert.ok(intents.some(i => i.name === 'StatusIntent'));
+  assert.ok(intents.some(i => i.name === 'TodayMeeshoOrdersIntent'));
+  assert.ok(intents.some(i => i.name === 'PendingDeliveriesIntent'));
+  assert.ok(all.some(s => s.includes('मीशो')));
+  assert.ok(all.some(s => s.includes('डिलीवर')));
   assert.ok(model.interactionModel.languageModel.invocationName.includes('डेस्क'));
 });
