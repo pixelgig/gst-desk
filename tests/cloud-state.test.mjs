@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import { readFileSync } from 'node:fs';
 import { stateApi, listState, authorize } from '../cloudflare/workers/gst-desk-preview/state-api.mjs';
 import { cloudClientJS } from '../cloudflare/workers/gst-desk-preview/cloud-state-client.mjs';
 
@@ -76,4 +77,23 @@ test('writes use fixed authenticated business, not request-supplied tenant',asyn
 test('filed returns only allow valid periods',async()=>{
   const r=await stateApi(request('/api/returns/summary?period=000000'),{DB:db()},who);
   assert.equal(r.status,400);
+});
+
+test('migrated HTML still contains parseable legacy inline scripts',()=>{
+  const worker=readFileSync(new URL('../cloudflare/workers/gst-desk-preview/worker.js',import.meta.url),'utf8');
+  const startMarker='return new Response(("<!doctype html>';
+  const stopMarker='</html>").replace(';
+  const start=worker.indexOf(startMarker);
+  const end=worker.indexOf(stopMarker,start);
+  assert.ok(start>=0 && end>start);
+  const literal=worker.slice(start+'return new Response(('.length,end+'</html>'.length+1);
+  const html=vm.runInNewContext(literal);
+  assert.ok(html.includes('<title>GST Desk</title>'));
+  assert.equal(html.includes('localStorage.getItem('),false,'Legacy workspaces must use cloud state adapter');
+  assert.ok(html.includes('window.GSTDeskState.getItem('));
+  const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m=>m[1]).filter(Boolean);
+  assert.ok(scripts.length>=15);
+  for(const [i,script] of scripts.entries()){
+    assert.doesNotThrow(()=>new vm.Script(script,{filename:'inline-'+i+'.js'}));
+  }
 });
