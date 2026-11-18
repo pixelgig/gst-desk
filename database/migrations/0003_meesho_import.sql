@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS gstdesk_meesho_invoices (
  document_date TEXT, hsn TEXT,
  pdf_filename TEXT, pdf_sha256 TEXT,
  document_total_paise INTEGER,
+ details_json TEXT NOT NULL DEFAULT '{}',
  source_zip_sha256 TEXT NOT NULL, source_period TEXT NOT NULL,
  imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
  PRIMARY KEY(business_id,invoice_no)
