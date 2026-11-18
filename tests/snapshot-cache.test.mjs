@@ -7,7 +7,7 @@ import { shippingClientJS } from '../cloudflare/workers/gst-desk-preview/shippin
 
 const sample={
  fetchedAt:'2026-11-18T12:33:00.000Z',
- data:{counts:{known_orders:24,verified_delivered:9,awaiting_awb:8,total_labels:16,eligible_for_check:2},
+ data:{counts:{known_orders:24,verified_delivered:9,total_delivered:13,owner_confirmed_delivered:4,verified_in_transit:1,awaiting_awb:8,total_labels:16,eligible_for_check:2},
  items:[{suborderId:'353095258237371968_1',invoiceNo:'87whi2722',orderDate:'2026-11-14',
  invoiceValuePaise:18004,carrier:'valmo',awb:'VL0086110945778',
  status:'in_transit',estimatedDeliveryText:'Delivery by Sat, 21 Nov',
@@ -27,7 +27,11 @@ async function run({cached,seed}={}){
 }
 test('server side page shows D1 records before scripts, including actual fetch time',()=>{
  const html=shippingFallbackHTML(sample);
- assert.match(html,/24<\/strong> invoiced orders/);
+ assert.match(html,/Total Delivered/);
+ assert.match(html,/Total In Transit/);
+ assert.equal((html.match(/<details /g)||[]).length,2);
+ assert.ok(!html.includes('<details open'));
+ assert.match(html,/13<\/strong>/);
  assert.match(html,/Order 353095258237371968_1/);
  assert.match(html,/VL0086110945778/);
  assert.match(html,/Refresh Data/);
@@ -46,7 +50,9 @@ test('default last snapshot loads locally with timestamp and ZERO network reques
  const {dom,calls}=await run({cached:sample});
  const text=dom.window.document.getElementById('nv-shipping-tracker').textContent;
  assert.match(text,/Last fetched from D1/);
- assert.match(text,/VL0086110945778/);
+ assert.match(text,/Total Delivered/);
+ assert.match(text,/Total In Transit/);
+ assert.doesNotMatch(text,/VL0086110945778/,'Shipment info must not show by default');
  assert.match(text,/Refresh Data/);
  assert.equal(calls.length,0);
  dom.window.close();
@@ -54,14 +60,17 @@ test('default last snapshot loads locally with timestamp and ZERO network reques
 test('server seed loads without API requests on a fresh browser',async()=>{
  const {dom,calls}=await run({seed:sample});
  assert.equal(calls.length,0);
- assert.match(dom.window.document.getElementById('nv-shipping-tracker').textContent,/VL0086110945778/);
+ const pane=dom.window.document.getElementById('nv-shipping-tracker');
+ assert.doesNotMatch(pane.textContent,/VL0086110945778/);
+ pane.querySelector('button[data-category="transit"]').click();
+ assert.match(pane.textContent,/VL0086110945778/);
  assert.ok(dom.window.localStorage.getItem('gstdesk-ui:shipping:v3:gstdesk-main-business'));
  dom.window.close();
 });
 test('manual Refresh Data fetches and persists fresh D1 data with new timestamp',async()=>{
  const {dom,calls}=await run({cached:sample});
  const buttons=[...dom.window.document.querySelectorAll('#nv-shipping-tracker button')];
- const refresh=buttons.find(x=>x.textContent==='Refresh Data');
+ const refresh=buttons.find(x=>x.textContent.includes('Refresh Data'));
  assert.ok(refresh);
  refresh.click();
  await new Promise(resolve=>setTimeout(resolve,40));
