@@ -5,7 +5,7 @@ import { shippingClientJS } from '../cloudflare/workers/gst-desk-preview/shippin
 import vm from 'node:vm';
 
 const order='353684149434396800_1',invoice='87whi2724',awb='VL0086126599143',hash='c'.repeat(64);
-const item={suborderId:order,invoiceNo:invoice,awb,sourceSha256:hash,page:1};
+const item={suborderId:order,invoiceNo:invoice,awb,carrier:'valmo',sellerName:'NIDHI',sourceSha256:hash,page:1};
 const request=(items,origin='https://gst.test')=>new Request('https://gst.test/api/shipping/labels/import',{
  method:'POST',headers:{Origin:origin,'X-GST-Desk-Write':'1','Content-Type':'application/json'},
  body:JSON.stringify({items})
@@ -16,7 +16,7 @@ const fakeDB=(existing=null)=>{
   return {bind(...args){
    calls.push({sql,args});
    return {
-    first:async()=>sql.includes('SELECT s.awb,s.status')?{awb:existing,status:'awaiting_awb',invoice_no:invoice}:null,
+    first:async()=>sql.includes('SELECT awb,status,invoice_no')?{awb:existing,status:'awaiting_awb',invoice_no:invoice}:null,
     run:async()=>({meta:{changes:1}})
    };
   }};
@@ -55,8 +55,18 @@ test('browser import parses PDF shipping labels and never uploads documents',()=
  assert.doesNotThrow(()=>new vm.Script(shippingClientJS));
  assert.ok(shippingClientJS.includes("getTextContent()"));
  assert.ok(shippingClientJS.includes("suborderId:orders[0],invoiceNo:invoices[0],awb:awbs[0]"));
+ assert.ok(shippingClientJS.includes("Seller is not NIDHI"));
+ assert.ok(shippingClientJS.includes("Delhivery"));
+ assert.ok(shippingClientJS.includes("jszip@3.10.1"));
  assert.ok(shippingClientJS.includes("'/api/shipping/labels/import'"));
  assert.ok(shippingClientJS.includes("crypto.subtle.digest('SHA-256'"));
  assert.ok(!shippingClientJS.includes("new FormData("));
  assert.ok(!shippingClientJS.includes('setInterval('));
+});
+
+test('Keshav Kripa labels cannot be imported into Nividhi business',async()=>{
+ const db=fakeDB();
+ const r=await shippingApi(request([{...item,sellerName:'Keshav Kripa',invoiceNo:'pwfyy279'}]),{DB:db},{businessId:'biz'});
+ assert.equal(r.status,400);
+ assert.equal(db.calls.length,0);
 });
