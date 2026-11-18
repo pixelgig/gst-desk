@@ -203,21 +203,24 @@ export async function shippingApi(request,env,who){
       const carrier=String(item.carrier||(/^VL\d{13}$/.test(awb)?'valmo':'')).toLowerCase();
       const invoiceNo=String(item.invoiceNo||'').trim().toLowerCase();
       const sellerName=String(item.sellerName||'').trim();
+      const sellerGSTIN=String(item.sellerGSTIN||'').trim().toUpperCase();
+      const invoiceDate=String(item.invoiceDate||'');
+      const invoiceTotalPaise=Number(item.invoiceTotalPaise),printedGSTPaise=Number(item.printedGSTPaise);
       const sourcePdfSha256=String(item.sourceSha256||''),sourceZipSha256=String(item.sourceArchiveSha256||sourcePdfSha256);
       const page=Number(item.page);
       if(!digits.test(suborderId)||!['valmo','delhivery'].includes(carrier)||
         !(carrier==='valmo'?/^VL\d{13}$/.test(awb):/^\d{16}$/.test(awb))||
-        (sellerName!=='NIDHI'||!/^87[a-z0-9]{3,30}$/i.test(invoiceNo))||
+        (sellerName!=='NIDHI'||sellerGSTIN!=='09CEIPN0076B1ZO'||!/^87[a-z0-9]{3,30}$/i.test(invoiceNo)||!/^20\d{2}-\d{2}-\d{2}$/.test(invoiceDate)||!Number.isSafeInteger(invoiceTotalPaise)||invoiceTotalPaise<=0||!Number.isSafeInteger(printedGSTPaise)||printedGSTPaise<0||printedGSTPaise>invoiceTotalPaise)||
         !/^[a-f0-9]{64}$/.test(sourcePdfSha256)||!/^[a-f0-9]{64}$/.test(sourceZipSha256)||
         !Number.isSafeInteger(page)||page<1||page>10000)
         return response({error:'invalid_label_evidence'},400);
       if(orders.has(suborderId)||awbs.has(awb))return response({error:'ambiguous_duplicate_label_evidence'},409);
       orders.add(suborderId);awbs.add(awb);
-      normalized.push({suborderId,awb,carrier,invoiceNo,sellerName,sourcePdfSha256,sourceZipSha256,page});
+      normalized.push({suborderId,awb,carrier,invoiceNo,sellerName,sellerGSTIN,invoiceDate,invoiceTotalPaise,printedGSTPaise,sourcePdfSha256,sourceZipSha256,page});
     }
     const results=[];
     for(const item of normalized){
-      const {suborderId,awb,carrier,invoiceNo,sourcePdfSha256,sourceZipSha256,page}=item;
+      const {suborderId,awb,carrier,invoiceNo,sellerGSTIN,invoiceDate,invoiceTotalPaise,printedGSTPaise,sourcePdfSha256,sourceZipSha256,page}=item;
       const original=await env.DB.prepare('SELECT awb,status,invoice_no FROM gstdesk_shipments WHERE business_id=? AND suborder_id=? LIMIT 1')
         .bind(who.businessId,suborderId).first();
       if(!original){
@@ -226,6 +229,26 @@ export async function shippingApi(request,env,who){
       if(original.invoice_no!==invoiceNo){
         results.push({suborderId,awb,carrier,outcome:'invoice_suborder_mismatch'});continue;
       }
+      const invoice=await env.DB.prepare('SELECT document_date,document_total_paise,details_json FROM gstdesk_meesho_invoices WHERE business_id=? AND invoice_no=? AND suborder_id=? AND document_type=? LIMIT 1')
+        .bind(who.businessId,invoiceNo,suborderId,'tax-invoice').first();
+      if(!invoice||invoice.document_date!==invoiceDate||Number(invoice.document_total_paise)!==invoiceTotalPaise){
+        results.push({suborderId,invoiceNo,awb,carrier,outcome:!invoice?'invoice_not_found_in_nividhi':'invoice_date_or_amount_mismatch'});
+        continue; // Do not write a single unverified invoice/AWB mapping.
+      }
+      let previous={};try{previous=JSON.parse(invoice.details_json||'{}')}catch{}
+      const originalGST=Number.isInteger(Number(previous.pdfPrintedTaxTotalPaise))&&previous.pdfPrintedTaxTotalPaise!=null?Number(previous.pdfPrintedTaxTotalPaise):null;
+      const taxDiscrepancy=originalGST!==null&&originalGST!==printedGSTPaise;
+      const audit={
+        invoiceNo,invoiceDate,invoiceTotalPaise,printedGSTPaise,
+        gstDifferencePaise:taxDiscrepancy?printedGSTPaise-originalGST:0,
+        taxDiscrepancy,
+        sellerGSTIN,
+        validatedAgainstD1:true,
+        evidenceSha256:sourcePdfSha256,
+        verifiedAt:new Date().toISOString()
+      };
+      const saveAudit=async()=>env.DB.prepare("UPDATE gstdesk_meesho_invoices SET details_json=json_set(COALESCE(details_json,'{}'),'$.labelParsedAudit',json(?)) WHERE business_id=? AND invoice_no=? AND suborder_id=? AND document_date=? AND document_total_paise=?")
+        .bind(JSON.stringify(audit),who.businessId,invoiceNo,suborderId,invoiceDate,invoiceTotalPaise).run();
       if(original?.awb&&original.awb!==awb){
         results.push({suborderId,awb,carrier,outcome:'conflicting_existing_awb'});continue;
       }
@@ -244,20 +267,22 @@ export async function shippingApi(request,env,who){
           continue;
         }
         if(original.awb===awb){
-          results.push({suborderId,awb,carrier,outcome:'already_saved'});
+          await saveAudit();results.push({suborderId,invoiceNo,awb,carrier,outcome:'already_saved',taxDiscrepancy,invoiceAuditSaved:true});
           continue; // Existing verified delivery states and dates remain immutable.
         }
         const saved=await env.DB.prepare(
           "UPDATE gstdesk_shipments SET carrier=?,carrier_name=?,awb=?,awb_source='verified_shipping_label_local_import',awb_evidence_sha256=?,awb_set_at=COALESCE(awb_set_at,CURRENT_TIMESTAMP),status=CASE WHEN status='awaiting_awb' THEN 'not_checked' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE business_id=? AND suborder_id=? AND awb IS NULL AND status!='delivered'"
         ).bind(carrier==='valmo'?'valmo':'other',carrier,awb,sourcePdfSha256,who.businessId,suborderId).run();
-        results.push({suborderId,awb,carrier,outcome:saved.meta?.changes===1?'saved':'conflict_retry'});
+        if(saved.meta?.changes===1)await saveAudit();
+        results.push({suborderId,invoiceNo,awb,carrier,outcome:saved.meta?.changes===1?'saved':'conflict_retry',taxDiscrepancy,invoiceAuditSaved:saved.meta?.changes===1});
       }catch{
         results.push({suborderId,awb,carrier,outcome:'database_conflict'});
       }
     }
     return response({manualImport:true,carrierStatusChecked:false,documentsStored:false,
       saved:results.filter(r=>r.outcome==='saved').length,
-      savedAwaitingInvoice:results.filter(r=>r.outcome==='saved_awaiting_invoice').length,results});
+      savedAwaitingInvoice:results.filter(r=>r.outcome==='saved_awaiting_invoice').length,
+      invoiceAuditsSaved:results.filter(r=>r.invoiceAuditSaved).length,results});
   }
   if(path==='/api/shipping/check'&&request.method==='POST'){
     if(!hasWriteHeaders(request))return response({error:'invalid_request_origin'},403);
