@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { stateApi, listState, authorize } from '../../cloudflare/workers/gst-desk-preview/state-api.mjs';
-import { cloudClientJS } from '../../cloudflare/workers/gst-desk-preview/cloud-state-client.mjs';
+import { stateApi, listState, authorize } from '../cloudflare/workers/gst-desk-preview/state-api.mjs';
+import { cloudClientJS } from '../cloudflare/workers/gst-desk-preview/cloud-state-client.mjs';
 
 const who={email:'owner@example.test',businessId:'business_one'};
 function request(path,method='GET',body,origin='https://gst.example.test'){
