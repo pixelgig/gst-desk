@@ -562,3 +562,201 @@ Existing catalogue can inspect **public** Meesho storefront HTML structured data
 Future Listing AI should use a shared canonical product schema and feed **this catalogue and Inventory**, not create disconnected products and duplicates in an unrelated bot database. Marketplace listing templates differ by current platform category and should be generated from templates supplied/downloaded by the owner, not invented column layouts.
 
 ---
+
+## 10. Planned integrations, boundaries and automation agenda
+
+### 10.1 NiviList AI — highest-priority new automation
+
+**Status on 19 November 2026: product plan / design, not built into main.** It is a direct extension of NIVIDHI’s small e-commerce catalogue and would serve the user's stated goal of reducing repetitive work.
+
+**Desired end-user flow:**
+
+1. Owner photographs jewelry/accessories (earrings, necklace, hair claw/clutcher, etc.) using phone.
+2. Sends one or several product images to an **owner-controlled Telegram bot**.
+3. Backend receives authenticated Telegram update/photo IDs; retains only the minimum necessary image/source metadata with explicit user consent and a short retention policy.
+4. **Gemini** performs initial visual product characterization: product type, materials only if actually inferable, colors, design, dimensions only if supplied/verified, quantity/pack size, suggested searchable title, features and description. Never invent purity, brand, size, manufacturing origin, HSN, GST rate or cost from photo alone.
+5. Validate/normalize the model’s proposal against a canonical structured **ProductDraft** and the saved catalogue. Ask the owner for missing mandatory fields (e.g. price, purchase cost, actual measurements, stock, SKU).
+6. Owner previews/edits/approves the product record; assign a stable NIVIDHI internal SKU and preserve images/evidence.
+7. Generate **separate** marketplace-specific, category-appropriate **Meesho, Flipkart and Amazon** bulk Excel listing files, using the actual current platform category templates and mandatory field rules. One universal Excel file is **not** enough.
+8. Allow a batch of many approved ProductDrafts; produce validation report for incomplete rows, platform-specific rejections and template version/date.
+9. Download the files; owner manually uploads them on seller portals unless the platform has an authorized integration. Store export mapping, version, approvals and errors to prevent duplicates.
+
+**Chosen model fallback ordering:**
+
+1. Gemini (the user's available Gemini plan / eligible API allowance) as primary.
+2. Cloudflare Workers AI as optional secondary subject to actual model capability, quota and the account’s free allocation.
+3. Compatible genuinely free external LLM providers as third fallback, only after checking privacy, uptime, data handling, real pricing and legitimacy.
+
+A consumer Gemini app subscription does **not** automatically grant free unlimited Gemini API requests. Workers AI “free” is conditional on current model usage limits. A third-party “free model aggregator” may fail, log uploaded business imagery, change limits or demand a card. Never silently switch model providers for sensitive product data without permission. For small catalogue volume, start with manual submissions, local transforms and very modest inference calls.
+
+**Low-cost implementation design (proposed):**
+
+- One **Telegram webhook** endpoint within the existing GST Desk Worker or a narrowly-scoped sibling Worker within the same repo/account, with Telegram secret-token verification and replay/idempotency.
+- An owner-only per-product intake state machine: received → interpreted → needs_owner_review → approved → exported → published_confirmed. Do not call “published” just because an Excel file was generated.
+- Canonical D1 **products / product_drafts / listing_exports / marketplace_field_mapping** tables via additive migrations. Prefer D1 metadata and small records; do not dump raw image bytes into SQL.
+- Browser-side or owner-supplied temporary image hosting; examine privacy, direct upload and free storage carefully. **Do not activate paid R2 merely to satisfy the design.** If durable image storage cannot be free/authorized, keep images with user or Telegram and store only permitted references with expiry.
+- Category templates should be **owner-provided/versioned inputs**, with exact header matching and robust XLSX export. Never fabricate current Meesho/Flipkart/Amazon bulk upload formats.
+- AI output must be schema-validated and human-reviewed; deterministic marketplace format generation should not itself use an LLM where code suffices.
+- Integrate approved products with current Catalogue and eventually Inventory, not a disconnected product silo.
+- Audit prompt/model/version and owner corrections without storing credentials or sensitive buyer data.
+
+**Acceptance criteria:** a single sample accessory and batch of multiple photos produce three downloadable platform templates where the owner-supplied templates permit; required missing values are flagged; duplicate images/SKUs do not silently create duplicate products; every generated claim is traceable to image or confirmed field; no paid call occurs without opt-in and cost check; existing GST Desk modules still work.
+
+### 10.2 Meesho order notifications and intake
+
+The user asked for immediate order notifications, potentially WhatsApp, without current access to Meesho-linked Gmail. **No trusted live Meesho webhook, official order API key, current Gmail integration or WhatsApp messaging arrangement has been established in this repository.**
+
+Before promising a new-order alert, obtain a **legitimate source of events**: official seller API/webhook subject to eligibility, an exported seller report imported on a known schedule, or another opt-in channel supported by the marketplace. A public GitHub repository documenting Meesho endpoints is **not proof that private seller APIs are publicly licensed or stable**. Do not harvest tokens, bypass anti-bot or CAPTCHA, scrape private accounts without permission or pass credentials into a proxy. Differentiate “new since last import” from true real-time push.
+
+**Possible future pipeline, only after authorization exists:** marketplace event/import → normalized unique order ID → D1 order + provenance → deduplicated event/outbox → optional owner Telegram alert, Dashboard pending counts and inventory reservation. WhatsApp automation must be judged against official API pricing/terms and the zero-recurring-cost rule; Telegram may be a lower-cost owner notification channel if acceptable.
+
+**Order Intake & Document Vault** is a requested future workspace. It must support verified owner documents and explicit review while protecting PII. Cloudflare R2 may have a free allowance but activation, billing details and usage limits require fresh confirmation; no R2 bucket is proven to exist here. Consider private on-device source retention if durable cloud storage conflicts with zero-cost constraints.
+
+### 10.3 Hindi Amazon Alexa voice
+
+**Status: source-level integration prepared, live Echo and full real-time API connection not verified.** All Alexa code is **within the same GST Desk repo**; voice is only a read-only client, never a second source of financial truth.
+
+The **hi-IN** interaction model uses the invocation “जीएसटी डेस्क” and defines these custom intents:
+- **DraftCountIntent**
+- **StatusIntent**
+- **TodayMeeshoOrdersIntent**
+- **PendingDeliveriesIntent**
+- **VerifiedDeliveredIntent**
+- **VerifiedTransitIntent**
+- **LastDeliveryDateIntent**
+- **UpdateDeliveryStatusIntent** (handler explicitly does **not** write to cloud)
+
+It also contains Amazon help, stop, cancel and fallback intents.
+
+The Lambda handler (**integrations/alexa/lambda/index.js**) uses Alexa ASK SDK. Runtime must validate exact skill ID and authorized account user ID, and call a fixed HTTPS **/api/voice/summary** endpoint using bearer secret; optional Cloudflare Access service credentials must be both set and scoped appropriately. A household Alexa account ID does **not** prove which human is speaking. A valid draft count should not cause the skill to announce customer names or private tax amounts.
+
+The staging **voice-summary.mjs** checks fixed business/owner membership, returns availableMetrics, aggregate draft and verified shipment summaries. **orders.today and pendingDeliveries stay null/unavailable until a trusted Meesho order feed exists.** Never transform null into zero or estimate today’s orders from historical invoices. The voice response must explicitly say sync is not connected.
+
+An Alexa **Custom Skill** normally requires invoking its name. The owner wanted to speak natural Hindi business questions without “open GST Desk”; investigate supported Alexa Routines/voice shortcuts for their locale and account, but do not promise Alexa will intercept arbitrary utterances. Amazon console interaction model and Lambda code are not automatically updated by GitHub commits. Check on-device behavior separately.
+
+**To implement safely:** authenticate owner-controlled Alexa staging endpoint; enforce minimal disclosed data, backend bearer token, Access service token if needed, active owner membership, correct D1; update Amazon skill source/model; test simulator and actual Echo; validate no name-free impersonation risk. No voice-triggered carrier POST or writes until an additional authorization design exists.
+
+### 10.4 Other extensions under consideration
+
+- Marketplace channel adapters for Flipkart, Amazon and eventually own website, built only on permitted APIs or verified owner-provided reports.
+- Standard product catalogue with variant SKU, HSN/tax evidence, price/stock/photo provenance and mapping to each marketplace’s listing ID.
+- Reliable order ledger (placed, cancelled, shipped, returned), shipment/carrier state and returns settlement lifecycle.
+- Purchase costing including no-GST-invoice supply, packaging, fees and other overhead without invented ITC.
+- Payment settlement reconciliation: bank credits, platform statement rows, deductions, pending payouts, refund recovery and net profit. Avoid claims based solely on orders.
+- GST Returns production-quality importer with portal-compatible GSTR-1 schema fixtures; GSTR-3B, GSTR-2B and filing calendar supported by verifiable filed evidence.
+- Controlled document intake with privacy and storage policies, audit, backups and recovery.
+- Optional generated management summaries and alerts, only after underlying metrics are reliable.
+- A premium, responsive dashboard whose look and speed remain consistent across the 16 legacy workspaces and new features.
+
+## 11. Change impact matrix — which file to inspect first
+
+This is the fastest operational index for a future AI. It does **not** authorize changing a single file without reading its consumers and tests.
+
+| User asks for... | Inspect/change first | Also inspect/test |
+| --- | --- | --- |
+| Homepage old 4-card UI instead of eight D1 KPIs | overview-client.mjs, server-snapshot.mjs, worker.js | overview-api.mjs, premium-theme.mjs, tests/overview, snapshot-cache, premium-label-parser; check browser JS errors. |
+| Homepage statistics wrong | overview-api.mjs / D1 SQL | migrated records, document_date, overview-client, server-snapshot, overview tests; avoid changing database merely to fit UI. |
+| Homepage logo not clickable | premium-theme.mjs, worker.js embedded header | theme tests, legacy navigation and click handler. |
+| New homepage tile | overview-api.mjs, overview-client.mjs, server-snapshot.mjs | shipping-client renderDashboard, responsive CSS and click/drilldown tests. |
+| Wrong invoice month | overview-api.mjs, overview-client.mjs | document_date/source_period separation, September/October regression fixtures, server fallback. |
+| Invoice drill-down/tax discrepancy | overview-api.mjs normalizeInvoice, overview-client.mjs detail | gstdesk_meesho_invoices details_json, label parser and GST tests. |
+| Valmo uploader missing | shipping-client.mjs mountValmo, worker.js section CSS, premium-theme.mjs | server-snapshot, shipping-browser.test, snapshot-cache.test, compiled browser scripts. |
+| PDF cannot parse or field missing | label-invoice-parser.mjs, shipping-client.mjs extractLabelPdf | server validation in shipping-api.mjs, fixtures, pdfjs dependency/CSP, tests. |
+| Duplicate AWB or wrong seller | shipping-api.mjs label import, label-invoice-parser.mjs | D1 constraints/migrations, shipping-label-import tests; never overwrite delivered evidence. |
+| “Delivered” count mismatch | shipping-api.mjs counts/view, shipping-client.mjs categoryCount | owner-confirmed Delhivery semantics, server-snapshot, shipping.test. |
+| Add Delhivery live tracking | shipping-api.mjs adapter (new), shipping-client.mjs | official authentication/terms, API tests, provenance and no-autocheck policy; currently not implemented. |
+| Valmo Check slow / old status | shipping-api.mjs checkValmo and /check, shipping-client.mjs checkStatus | timeout, on-demand only, carrier schema changes, shipping.test. |
+| First load slow | worker.js seed, server-snapshot.mjs, overview-client/shipping-client caches, premium-theme | legacy react/jsdelivr dependencies, network waterfall, no extra D1 reads, mobile test. |
+| D1 records not saving | cloud-state-client.mjs, state-api.mjs | expectedRevision, errors banner, Access JWT, DB env, cloud-state tests. |
+| Can’t open in second device | Access policy, D1 business membership, cloud-state-client, state-api | private session, migrated localStorage keys, 409 conflicts and no data loss. |
+| Private access/authentication | state-api.mjs claims/authorize, Cloudflare Access policies | Worker routing, fail-closed tests; **never** turn off Access for convenience. |
+| Meesho GSTR-1 exporter | worker.js embedded Meesho/GSTR handlers | file parsers, GST current schema, September fixtures, returned/cross-month rows, API write path. |
+| GSTR-3B/ITC logic | worker.js GSTR3B, itcrecon and taxlab UI | purchase evidence, GSTN rules, filed source, tests and accountant review. |
+| Profit incorrect | worker.js profit/orders UI and normalized future settlement layer | fee/payout/cost source records, refunds and no-invoice-purchase caveats. |
+| Product/stock counts wrong | worker.js Inventory and modern React root | GSTDeskState, normalized catalogue/products, no false stock from invoices. |
+| Marketplace public catalogue discovery | worker.js /api/catalogue/meesho + catalogue tab | host allowlist, redirect/network safety, seller API vs public data distinction. |
+| Telegram photo Listing AI | new owner-authenticated webhook/intake modules; canonical catalogue | Gemini/Cloudflare AI quotas, Excel template validation, approved product mapping and tests. |
+| Amazon/Flipkart Excel generator | new template parser/exporter plus shared product schema | owner-supplied current Excel templates, category-specific validation, manual confirmation. |
+| Alexa Hindi intent/voice summary | hi-IN.json, lambda/index.js, voice-summary.mjs | staging worker, docs/integrations/alexa-hindi.md and Alexa CI/device test. |
+| New D1 table/column | additive migration, SQL snapshots/operations docs | every SQL query and test fixture using column, backup, deployment order and rollback plan. |
+| New external integration/notification | source contract, consent/ToS, secrets and worker route | quotas, privacy, event dedupe, failed/retry states, costs and Access. |
+| New icon/theme/performance changes | premium-theme.mjs and related client | no external fonts, safe SVG DOM, desktop/mobile and snapshot fallback. |
+| Site suddenly looks older after deployment | production deployed Worker version, HTML fallback, script helper/CSP, browser Console, cache | worker.js inject order, overview/shipping JS, global CSS; test real signed-in device. |
+
+## 12. Development, testing and deployment protocol
+
+### 12.1 Pre-change inspection
+
+Before changing code:
+- Verify **git HEAD**, latest commits and status of any concurrent agent edits. Never overwrite another agent’s newer code with an old fetched SHA.
+- Read this brain.md and relevant operational notes, then open exact current implementation files.
+- Inspect D1 current schema version with **read-only** SQL; know if migration 0008 was already applied.
+- Confirm whether the task is source-only or requires Cloudflare deployment, data migration, Amazon console changes, seller-platform actions, Telegram setup, etc.
+- Describe affected business records and how they survive a rollback.
+- Identify acceptance tests and representative source fixtures before coding.
+
+### 12.2 Local/CI tests already represented in repo
+
+The existing **cloud-state.yml** uses Node **22** and installs **jsdom 24.1.3** for DOM tests. It checks JavaScript syntax and runs the seven GST Desk source test files. The separate Alexa workflow checks staging and Lambda JS syntax and runs voice-summary tests.
+
+Representative commands to use in a checked-out copy (run from repo root):
+
+    node --check cloudflare/workers/gst-desk-preview/worker.js
+    node --check cloudflare/workers/gst-desk-preview/state-api.mjs
+    node --check cloudflare/workers/gst-desk-preview/overview-api.mjs
+    node --check cloudflare/workers/gst-desk-preview/overview-client.mjs
+    node --check cloudflare/workers/gst-desk-preview/shipping-api.mjs
+    node --check cloudflare/workers/gst-desk-preview/shipping-client.mjs
+    node --check cloudflare/workers/gst-desk-preview/label-invoice-parser.mjs
+    node --check cloudflare/workers/gst-desk-preview/server-snapshot.mjs
+    node --check cloudflare/workers/gst-desk-preview/premium-theme.mjs
+    npm install --no-save --no-package-lock jsdom@24.1.3
+    node --test tests/cloud-state.test.mjs tests/overview.test.mjs tests/shipping.test.mjs tests/shipping-browser.test.mjs tests/shipping-label-import.test.mjs tests/snapshot-cache.test.mjs tests/premium-label-parser.test.mjs
+    node --test integrations/alexa/test/*.test.mjs
+
+These are representative of tracked CI, not a claim they have *just passed in the current AI session*. If adding new dependencies, pin versions, audit license/limits and avoid needing a paid build platform.
+
+For the embedded Worker, add a **production-bundled HTML execution test** when possible. Source-level module tests can pass while inline function.toString() output references a bundler helper not present in browser. Test actual Worker build output in a realistic DOM/browser.
+
+### 12.3 Minimal release checklist
+
+1. Run targeted and complete tests; confirm proper D1 tenant isolation, strict input validation and zero unauthorized data exposure.
+2. Verify **wrangler.jsonc** still points to **gst-desk-preview**, the existing DB binding and production compatibility date.
+3. Check Cloudflare Access app for custom domain, issuer/audience, owner membership and secret **presence** without dumping secret values.
+4. Keep **keep_vars** semantics; avoid accidentally dropping Cloudflare configuration on redeployment.
+5. Back up D1 privately before migrations, with schema and row-count verification. **Never commit backup into this public repo.**
+6. Run read-only migrations check before any ALTER/INSERT; apply additive migration only after reviewing actual schema and data.
+7. Deploy the tested main source using the verified project Wrangler toolchain and account; **do not blindly run a deployment against the wrong account**. Root config is for production, not staging.
+8. Query Cloudflare deployment history to confirm the **new version is receiving 100% production traffic**; ensure custom domain points at the same Worker.
+9. Open **gst.nividhi.in in an authenticated mobile Chrome session**. Inspect actual homepage, eight D1 cards, Valmo two categories, visible importer, no duplicate IST, meaningful status, unchanged invoices and healthy import preview.
+10. Test a safe, user-approved label import fixture and an actual invoice drilldown. Check Console/network errors and 403 on unauthenticated private API. Do not test destructive operations against live business data.
+11. On failure, roll back to last known good Worker version **without modifying D1 history** and investigate why deployment/HTML/fallback diverged.
+12. Tell owner: code commit, deployed Worker version, tests run, manual tests not possible, D1 changes, open issues and exact rollback route.
+
+**Important:** Source workflow files currently define **tests**, not an unconditional GitHub push → production deploy pipeline. Historical Cloudflare versions were deployed with Wrangler. Never say “GitHub commit means deployed” unless Cloudflare history confirms an actual new version.
+
+### 12.4 Backups and restoration
+
+- Source code: Git branches/commits with trustworthy history.
+- D1: private real row-level backup/export, schema fingerprint and counts; schema.snapshot.sql alone is **not** a backup.
+- Browser legacy state: opt-in download and explicit migration with revisions; keep until confirmed visible in D1 on another authorized device.
+- Imported source Meesho ZIPs/PDFs: owner-controlled originals needed for audit; D1 only stores checksums and selected data.
+- Alexa: Amazon console model/Lambda/config version separate from GitHub source.
+- Telegram/Gemini: keep bot tokens and AI credentials in secret bindings; do not store them in chat or repo.
+
+A Cloudflare **Worker rollback changes code only**; it does not revert D1 migrations or row writes. Restoring financial records requires a separate, controlled, verified business-data procedure.
+
+### 12.5 Performance budget and mobile quality
+
+User encountered mobile loads lasting several minutes. Maintain these improvements:
+- Authenticated HTML ships private server D1 snapshot before JS; avoid blank loading screens.
+- Inline overview/shipping JS reduces additional fetch dependency; the cloud-state asset still exists.
+- Use local snapshot scoped per business with fetchedAt; render saved data promptly, then require explicit Refresh Data for newer D1.
+- Zero courier tracking on initial render; avoid high-latency Valmo endpoint until owner selects Check.
+- Load ZIP/PDF/XLSX libraries only for relevant actions or defer them, not as first-paint blockers.
+- Abort stalled reads around 12 seconds and retain old snapshot visibly instead of freezing.
+- Avoid unnecessary visual assets, web fonts, icon-CDNs, external chart packages and expensive animations.
+- Test mobile navigation, small-screen KPI grid, 2-category cards, always-visible upload input and logo home link.
+- Performance wins must not sacrifice accurate state, accessibility, security or validation.
+
+---
