@@ -760,3 +760,233 @@ User encountered mobile loads lasting several minutes. Maintain these improvemen
 - Performance wins must not sacrifice accurate state, accessibility, security or validation.
 
 ---
+
+## 13. Known limitations, technical debt and important open questions
+
+**Do not “fix” these by deleting data or changing counts until the business evidence and current code have been checked.**
+
+### 13.1 Technical state verified in source
+
+| Area | Present state / issue | Correct next move |
+| --- | --- | --- |
+| Historical invoices versus live orders | Historical Meesho imported invoices and source report rows exist; no established live marketplace order feed. | Define an authorized source/adapter with event freshness and deduplication before calling any metric “today”. |
+| Profit | Shipping/dashboard code deliberately renders “Profit: Not calculated” without all costs/fees. | Build source-backed purchase/settlement data model; do not treat invoice total as profit. |
+| Inventory dashboard | Old React/legacy state can display zero units and products although D1 invoices exist. | Build explicit catalogue/stock migration/reconciliation; distinguish unknown from zero. |
+| Cloud-backed legacy tools | Compatibility key/value state is revisioned, but not equivalent to normalized cross-workspace SQL tables. | Inventory data flows and progressively normalize with safe dual-read/backfill. |
+| Shipping labels awaiting invoice | Schema supports unmatched labels; current import implementation short-circuits if original shipment/invoice absent. | Clarify whether unmatched retention is desired; test and implement a safe staging/reconciliation queue, without weak invoice validation. |
+| Delhivery | Label IDs and owner-confirmed completed delivery are supported; **live carrier API not connected**. | Investigate a permitted, reliable integration and preserve owner-vs-carrier evidence. |
+| Valmo | Manual website carrier endpoint with strict validation and timeout. | Watch provider schema/terms and handle unavailability without guessing. |
+| PDF text extraction | Uses browser PDF.js; scanned image-only PDFs may yield no readable text. | Provide clear review/manual correction; optional OCR only after accuracy, privacy and free-limit audit. |
+| Product catalogue discovery | Extracts public Meesho structured data when provided; may return no products if markup lacks JSON-LD. | Do not interpret no extracted records as empty seller catalogue. |
+| Document storage | D1 stores metadata/hashes, not original PDFs/ZIPs. | Keep owner-side originals; only explore private object storage with verified free terms. |
+| Large embedded Worker | worker.js has a giant HTML/CSS/JS string and a React directory; source-level changes are fragile. | Extract incrementally behind tests and preserve exact markup/IDs while refactoring. |
+| Server snapshot / inline scripts | Previous production build broke due to nested CSS and missing esbuild helper. | Test bundled runtime and signed-in DOM, not only source scripts. |
+| Alexa | Hindi intent/Lambda/staging code exists, but live Echo sync and endpoint secrets require manual setup/verification. | Connect and test securely with fixed owner and read-only metrics. |
+| Listing AI | Telegram + Gemini + Excel design, no production bot/template generator proven. | Build only after canonical product schema and genuine category templates. |
+| “Free forever” | Cloudflare/Gemini/provider limits are subject to account/plan changes. | Query current official documentation, account quota, cost controls and billing status; no silent paid fallback. |
+| GitHub/Cloudflare parity | GitHub is source, but deployment is a separate process and README has old snapshot language. | Compare main HEAD with deployed Worker version/hash and deployment history on each release. |
+| Browser testing | Automated jsdom tests verify many paths, but do not log into the actual private website. | Owner-authenticated mobile E2E smoke test on every meaningful UI release. |
+| GST legal/fiscal accuracy | Export preparation is not government filing; financial schemas and regulatory rules evolve. | Refresh portal/schema requirements, preserve filed evidence and obtain human/accountant review. |
+
+### 13.2 Data numbers are not timeless constants
+
+Historical records discussed during development included:
+- **12 sales report rows and 1 return** for the September 2026 Meesho report fixture.
+- **14 invoice/credit-note documents** from the original September archive, **13 issued in September and one on October 1**.
+- **Two September filed return summary records** (GSTR-1/GSTR-3B).
+- By a later November review, approximately **24 known invoiced orders**, **16 unique verified shipping labels/AWBs** from about **22 pages**, and two credit notes were discussed in the development history.
+- In the mobile screenshot taken at approximately **2:36 a.m. IST on November 19, 2026**, Valmo showed **13 Total Delivered** and **2 Total In Transit**, while the legacy home still showed zero inventory/stock and “16 available tools” because the new D1 overview was not appearing.
+
+Treat these as **point-in-time troubleshooting/fixture references**, not permanent business KPIs. Do not hardcode them in dashboard, tests for arbitrary production data, database migrations or Alexa replies. The current authoritative count comes from the appropriate D1 query and evidence classification. Some historical conversation summaries used different intermediate AWB counts as imports progressed; that is expected and not license to select whichever number is most convenient.
+
+### 13.3 Specific known-risk implementation patterns
+
+1. **Broad CSS visibility**: hide only direct main workspace sections. Nested section cards such as PDF importer and server-rendered summary must be visible.
+2. **Build-generated functions**: Wrangler/esbuild can inject the **__name** helper inside function bodies stringified by **toString()**; test the compiled inlined client, not only plain exported strings in Node.
+3. **DOM initialization timing**: overview and Valmo scripts must boot once their mount elements exist. Waiting for CDN library load allows old UI to persist or new UI never to mount.
+4. **React and D1 overlap**: #nv-overview is a sibling of #gstdesk-react-root. React re-rendering its own mount should not remove D1 overview, and D1 logic should not destroy the 16-workspace directory.
+5. **Source archive and document period**: source_period belongs to provenance; document_date controls invoice month; order_date controls actual order timing when valid.
+6. **Rounding**: printed GST total and tax component sums may differ by paise; both are valid distinct representations of the source. Prefer printed total, expose difference.
+7. **Shipment vs order**: a tax invoice may exist for an unshipped order; a label does not prove delivered; an owner assertion does not prove carrier timestamp; a last carrier check is not a live feed.
+8. **Immutability**: original delivered shipments, filed-return values and original invoice metadata must not be overwritten by a conflicting later import.
+9. **Public GitHub + private business**: code can be public, but no genuine buyer data, business raw exports, secrets, tokens or downloaded private document binaries may be added to commits or logs.
+10. **Unmatched label branch**: review live API branch reachability, not schema support alone. A database table name or test label does not prove a case is handled.
+11. **Pending legacy saves**: if a cloud save fails, do not force navigation or clear browser storage before the user downloads an emergency backup/reconciles.
+12. **Cross-device access**: two authorized devices can race through optimistic versions; conflicts must be surfaced, not ignored.
+13. **Public URL proxy**: /api/catalogue/meesho has narrow allowed hosts/paths and a bounded fetch; keep strict SSRF and redirect prevention, timeout and content-size checks.
+14. **Zero-cost drift**: no infrastructure change that can generate unexpected charges without reviewing free plan and obtaining owner approval.
+
+## 14. Troubleshooting and incident runbooks
+
+### 14.1 “Homepage went back to old design; summary missing”
+
+**Symptoms:** After a successful-looking deploy the owner sees “Good to have you here”, inventory 0/stock 0/tools 16 but not eight D1 KPI cards or issue-month invoice list. The problem may be client startup/render visibility, **not lost D1 data**.
+
+**Triage order:**
+1. Confirm production custom domain and Worker deployment version; compare main HEAD. Do not rewrite source yet.
+2. Test GET protected HTML with an authenticated owner session and verify it contains **nv-server-summary**, **__GST_DESK_OVERVIEW_SEED__**, source script and **nv-overview** insertion logic.
+3. Inspect generated JavaScript in page/Console; verify no **ReferenceError: __name is not defined**, no parser syntax error, no CSP block, no missing overview mount or runtime uncaught exception.
+4. Inspect CSS computed display for **#nv-server-summary** and nested sections. A global **section{display:none}** hides both fallback and uploader.
+5. Check **#modern**, **#gstdesk-react-root**, **#nv-overview** and which section has class **on**. Verify client script boot happens before unrelated legacy CDN dependency.
+6. Verify owner-authorized **GET /api/overview** returns JSON and D1 counts. A 403/503 should surface as auth/config error and never become fabricated zeros.
+7. Clear only a safe transient page cache/reload after preserving pending browser state, if truly necessary. Avoid clearing all localStorage.
+8. Add a test that reproduces actual compiled HTML/runtime, deploy, then recheck real mobile authenticated session.
+
+**Relevant files:** worker.js, overview-client.mjs, server-snapshot.mjs, premium-theme.mjs, snapshot-cache.test.mjs. Known source fix: **226b7c0**; regression test **f23fa552**. No D1 mass-delete needed.
+
+### 14.2 “Valmo shows Delivered/In Transit but no PDF Importer”
+
+**Symptoms:** The two summary categories render (perhaps from server snapshot), but the independent upload panel is gone.
+
+**Triage order:**
+1. Check **#nv-shipping-tracker .nv-upload-card** exists in DOM. If absent, shippingClientJS may have failed or was not initialized.
+2. If present but hidden, inspect section selector cascade and any hidden attribute; uploader must be outside **.nv-category-detail**.
+3. Look for JS Console errors, including compiled browser helper failure.
+4. Verify **mountValmo** builds file input and “Parse, Validate & Save to D1” button.
+5. Verify shipping fallback and JS both serve same signed-in version, then click category closed/open.
+6. Test a benign local PDF parse and validation preview; do not send unvalidated PDF bytes to server.
+
+**Relevant files:** shipping-client.mjs **L297–L356**, worker.js, premium-theme.mjs, shipping-browser.test.mjs, snapshot-cache.test.mjs.
+
+### 14.3 “Refresh takes five minutes or spins forever”
+
+- Distinguish **Refresh Data** (private D1 GET) from **Check Pending Valmo Status** (carrier network calls).
+- A normal initial render should use server seed/local saved snapshot and avoid waiting for carrier API or PDF/XLSX ZIP CDN.
+- Check whether bootstrap GET is one request, response includes items/counts, and AbortController timer clears on success.
+- Check Cloudflare Access redirect/expiry, D1 availability, large record payload, JS errors and mobile connection.
+- If D1 refresh fails, show last saved snapshot and clear disabled/loading state; provide Retry.
+- Avoid indiscriminate caching of private GET responses at shared edges. Worker HTML/API are no-store; local snapshot is scoped by business and timestamped.
+- Do not “speed up” by removing validation, leaking private records, hiding errors or faking a successful refresh.
+
+### 14.4 “The tracking count or delivery date is wrong”
+
+1. Compare D1 **gstdesk_shipments** raw status, **owner_confirmed_delivered**, **carrier_name**, delivered_date_ist, last_event and AWB. Read-only first.
+2. Compare dashboard total_delivered versus verified_delivered and owner_confirmed_delivered; combined definition must match UI.
+3. Inspect source label and carrier event; invoice exists does **not** mean shipped.
+4. Actual delivery date must come from verified dated carrier event, not owner confirmation or carrier ETA.
+5. Returned and failed orders must never inflate delivered totals; unknown must not count as transit.
+6. If an old cached snapshot differs from D1, label its fetchedAt and use user-initiated Refresh Data, not automatic carrier polling.
+7. Fix state classifier/read model with fixtures and audit; never mutate status merely to match a headline count.
+
+### 14.5 “Import says wrong invoice/date/tax or skips a PDF”
+
+1. Identify ZIP/PDF name, page, SHA, seller printed on label, GSTIN, carrier, AWB, suborder and invoice number.
+2. Determine whether PDF contains searchable text or only an image; PDF.js text extraction may be empty.
+3. Compare PDF issue date (not order date), printed GST and total against the original stored D1 tax invoice. Examine source XML/text layout but do not infer unprinted fields.
+4. Conflicting labels or non-NIDHI seller pages must be excluded with reason, never force-imported.
+5. Repeated identical label should be idempotent. Original matching invoice data and already verified deliveries should remain immutable.
+6. If genuine source GST differs from another document, preserve both and show discrepancy for owner review, not silent auto-correction.
+7. Add a small redacted regression fixture preserving real layout features and test deterministic extraction.
+
+### 14.6 “A new code commit did not change the website”
+
+- A GitHub commit alone does not prove production deployment. This repo's Actions workflows chiefly **test**.
+- Inspect Cloudflare Worker latest deployments, deployed source bundle, route/hostname mapping and active version percentage.
+- Verify project root **wrangler.jsonc** and actual selected account; no confusion with staging template or old Worker.
+- Production may serve server fallback even if client fails; verify actual mobile DOM and Console before calling it “stale CDN”.
+- Never redeploy an earlier worker.d1-pending snapshot because it looks shorter or newer by filename.
+- Preserve D1 and Cloudflare Access settings; rolling back Worker code is safer than overwriting private records.
+
+### 14.7 “GST data differs from filed return”
+
+- Compare original Meesho GST report exact decimals, invoice PDF printed totals, credit-note direction and filed return ARN data.
+- Use document issue date grouping and correctly assign cross-month invoice 87whi2713.
+- Show difference in paise with provenance. Source rounding can be a legitimate reason; do not erase difference.
+- Confirm the filing period/return type and whether historical filed GSTR-1/GSTR-3B is immutable.
+- Give a human accountant a reconciliation worksheet; do not silently revise a filed return or claim it is automatically reconciled.
+
+## 15. Product roadmap with explicit delivery gates
+
+This order reflects both the user's **core GST compliance requirement** and their **latest priority of time-saving Listing AI**. Workstreams can progress incrementally; the next AI should let the owner reprioritize without discarding either objective.
+
+### P0 — Stabilize and document production (always mandatory)
+
+**Goal:** preserve verified D1-backed homepage, Valmo importer, private Access and zero-cost hosting.
+
+Deliver: tracked source matching live Worker; private D1 backups; regression tests covering compiled scripts and CSS; mobile visual smoke checks; error and free-quota monitoring; documentation updates. Never intentionally regress eight KPIs or importer visibility to add a cosmetic feature.
+
+**Done when:** signed-in mobile homepage shows D1 cards and month links; Valmo two cards + visible PDF upload; manual refresh succeeds; backend D1 metadata and Access checks remain intact; no default carrier requests.
+
+### P1 — GST Returns production-quality import/reconciliation
+
+**Goal:** owner can upload Meesho GST ZIP + Tax Invoice ZIP, reconcile deterministically, review exceptions and export a schema-compliant GSTR-1 JSON with evidence.
+
+Subfeatures: source parser versions, safe ZIP handling, invoice type/order linkage, date/place/HSN/credit-note rules, printed tax rounding, UI preview, validation report, double-import idempotency, period lock, export and regression fixtures. GSTR-3B and ITC tools only use legitimate eligible purchase evidence.
+
+**Done when:** September historical benchmarks match with documented rounding delta; cross-period case behaves; a credit note correctly reverses totals; test files produce expected JSON; invalid files block export or mark it draft; a human can review before portal submission.
+
+### P2 — Normalize business data and settlement truth
+
+**Goal:** current-day useful order/profit/inventory/payout reporting.
+
+Build additive common Product, Variant, PurchaseCost, InventoryMovement, MarketplaceOrder, OrderLine, InvoiceLink, ShipmentLink, Return, Fee, Settlement, Payout and SourceImport records as justified by actual inputs. Start by normalizing existing stored legacy state without losing old records. Add source-ledger/idempotent import and dashboard distinctions between known/unknown.
+
+**Done when:** each dashboard number traces to a user-provided or verified source; cross-device editing works with conflicts; product stock and realized profit can be reproduced from transactions.
+
+### P3 — NiviList AI photo-to-bulk listing workflow
+
+**Goal:** minimal owner typing for product listings on Meesho, Flipkart, Amazon.
+
+Start with 1 product/manual image input and **actual owner-supplied** category templates. Add canonical ProductDraft and approval. Then Telegram webhook, Gemini with free-usage controls, fallback providers, multi-item batches, and export preview. Integrate Catalogue and Inventory. No marketplace auto-publish until official authorizations exist.
+
+**Done when:** at least one jewelry and one hair-accessory fixture pass each valid template's required columns; owner can edit generated text, cost, size and tax classification; output is repeatable; no hallucinated mandatory fields or unexpected charges.
+
+### P4 — Order intake and notifications
+
+**Goal:** real new-order signal with trusted source; optional Telegram/WhatsApp owner notifications.
+
+Investigate official seller export/API/webhook rights. Store fresh event time, source and unique marketplace IDs; distinguish true live signals from polling/import. Never count a daily order from historical invoice date. Add deliberate retries, dedupe, dead-letter/review states and data retention controls. Add Document Vault only with genuinely viable free private storage.
+
+**Done when:** duplicate events send one alert, only owner sees it, absent feed reports “not connected”, and source lag/freshness is visible.
+
+### P5 — Alexa Hindi and cross-channel controls
+
+**Goal:** accurate owner read-only voice summaries from existing D1, no second backend of business truth.
+
+Connect staging voice endpoint securely, test eight intents / fallback, verify actual Echo behaviour and private-account limitations. Later extend to new order metrics only after P4 source exists. Explore routine shortcuts but do not promise invocation-free custom skill.
+
+**Done when:** authorized owner Echo request returns correct source-backed aggregate; unauthorized account gets no data; unsupported current-day order questions explicitly say sync unavailable; voice writes remain disabled unless separately secured.
+
+### P6 — Experience, resilience and long-term maintenance
+
+- Incrementally modularize giant embedded Worker without changing DOM/API contracts.
+- Add browser E2E and deploy-time smoke tests with safe nonproduction fixtures.
+- Use accessible iconography, responsiveness, lazy libraries and consistent navigation.
+- Add restore rehearsal, usage alerts, import audit and low-volume free-tier observability.
+- Consider first-party NIVIDHI storefront, more marketplaces, finance exports, richer notifications or other tools **only after** they demonstrably save work.
+
+## 16. Regression fixture catalogue — what tests should assert
+
+Use synthetic/redacted fixtures for GitHub tests; real unredacted invoices/labels stay private.
+
+| Fixture | Must verify |
+| --- | --- |
+| September Meesho GST source | 12 original sale rows, 1 return, correct signed net; filed GSTR-1 benchmark preserved separately; no silent rounding reconciliation. |
+| Cross-month document 87whi2713 | Order September 30; PDF issue October 1; counted in October document month, source archive period still September. |
+| November invoice 87whi2723 | Exact paise from ₹121.66 taxable + ₹3.65 IGST = ₹125.31 total, original GST printed source priority and HSN/SKU linkage. |
+| Matching NIVIDHI shipping label | Seller/GSTIN, one AWB, suborder, invoice/date/total, source checksum; saves verified metadata without document upload. |
+| Label from another seller | Rejected before any D1 write, even when AWB format looks legitimate. |
+| Reprinted duplicate label | No duplicate shipment/invoice, no status change, clearly idempotent audit result. |
+| Conflicting AWB/invoice | Rejected with conflict; original shipment and filed totals unchanged. |
+| Missing/ambiguous PDF date or total | Reject rather than infer; show page in review. |
+| Verified Valmo delivered event | Only set delivered + date with matching tracking ID and explicit date/time evidence. |
+| “On the way” with nested out for delivery | Correct current stage, not falsely delivered. |
+| Returned/failed event | Never counted as successful delivery. |
+| Undated carrier “Delivery by” | ETA text only; delivered_date_ist stays null. |
+| Delhivery owner assertion | Included in combined delivered count but no carrier delivered_at fabricated. |
+| Unknown AWB/invoice | Awaiting AWB/not checked, not transit and not delivered. |
+| Browser D1 saved snapshot | First paint without carrier calls; correct IST timestamp; explicit refresh fetch; graceful timeout/error state. |
+| JS-disabled or errored homepage | Server fallback shows eight KPI overview and collapsible categories; no hidden nested section. |
+| Bundled inline JS | No missing __name / syntax errors after Wrangler bundle; overview and uploader mount. |
+| Legacy 16 tools | All navigation routes/screens remain reachable; main React root still exists. |
+| State revision conflict | Stale device gets 409 and offers safe reconciliation/export. |
+| Unauthorized user | 403/Access block; private D1 and invoice data never leak. |
+| Empty/new business database | Real zero/unknown states rather than hardcoded user fixture counts; no uncontrolled SQL error. |
+| Alexa unconfigured/no trusted feed | Fails closed, readOnly true, ordersToday false/null, no writes or leaked details. |
+| Listing AI photo | Fields only from image/owner confirmation; missing price/size/GST rate flagged; correct current template headers; no duplicate SKU. |
+
+### Test fixture safety
+
+Use invented customer identities and addresses; avoid committing identifiable original source PDF, seller credentials or private seller portal screenshots. The seller GSTIN used as a parser verification literal may be visible in current code; **do not copy it into new fixtures or documentation without a need-to-know and repository privacy review**. Public tests can inject test-configured seller identity rather than duplicate a real identifier. Date tests should set explicit time and timezone and avoid depending on “today”.
+
+---
