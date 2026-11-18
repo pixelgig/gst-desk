@@ -1,3 +1,4 @@
+import { labelParserBrowserJS } from './label-invoice-parser.mjs';
 // Manual-only shipping dashboard for the existing Cloudflare D1 GST Desk.
 // No PDF uploads, scheduled refresh, tracking-on-load, or invented delivery status.
 function gstDeskShippingClient(){
@@ -204,19 +205,13 @@ function gstDeskShippingClient(){
    for(let pageNo=1;pageNo<=pdf.numPages;pageNo++){
      const page=await pdf.getPage(pageNo),tc=await page.getTextContent();
      const text=tc.items.map(x=>x.str||'').join(' ').replace(/\s+/g,' ');
-     // The seller's TAX INVOICE occupies the bottom half of every Meesho label.
-     // Reject mixed-business labels, including Keshav Kripa, before saving an AWB.
-     const sellerVerified=/Sold\s+by\s*:\s*NIDHI\b/i.test(text);
-     const carrier=/\bDelhivery\b/i.test(text)?'delhivery':(/\bValmo\b/i.test(text)?'valmo':null);
-     const awbs=carrier==='valmo'?[...new Set((text.match(/\bVL\d{13}\b/gi)||[]).map(x=>x.toUpperCase()))]:
-       carrier==='delhivery'?[...new Set(text.match(/(?<!\d)\d{16}(?!\d)/g)||[])]:[];
-     const orders=[...new Set(text.match(/\b\d{15,20}_\d{1,4}\b/g)||[])];
-     const invoices=[...new Set((text.match(/\b87[a-z0-9]{3,30}\b/gi)||[]).map(x=>x.toLowerCase()))];
-     if(sellerVerified&&carrier&&awbs.length===1&&orders.length===1&&invoices.length===1){
-       found.push({suborderId:orders[0],invoiceNo:invoices[0],awb:awbs[0],carrier,sellerName:'NIDHI',sourceSha256:sha,page:pageNo});
-     } else {
-       review.push({file:filename.slice(0,80),page:pageNo,
-         reason:!sellerVerified?'Seller is not NIDHI (excluded from GST Desk)':!carrier?'Carrier not identified':!awbs.length?'AWB not reliably extracted':!orders.length?'No suborder ID on page':!invoices.length?'No Nividhi invoice number on page':'Multiple possible identifiers; skipped'});
+     // Source field validation is shared with automated tests and D1's audit.
+     // Text extraction and PDF bytes remain entirely inside the user's browser.
+     const parsed=parsePrintedInvoice(text);
+     if(parsed.ok){
+       found.push({...parsed,sourceSha256:sha,page:pageNo});
+     }else{
+       review.push({file:filename.slice(0,80),page:pageNo,reason:parsed.reason});
      }
    }
    return {found,review};
@@ -259,18 +254,24 @@ function gstDeskShippingClient(){
        found.push(...x.found);review.push(...x.review);
      }catch(e){review.push({file:entry.name,reason:'Could not parse PDF: '+e.message})}
    }
-   const rows=[],orders=new Set(),awbs=new Set();
+   const rows=[],orders=new Map(),awbs=new Map();let exactDuplicates=0;
    for(const r of found){
-     if(orders.has(r.suborderId)||awbs.has(r.awb)){
-       review.push({file:'Multiple files',reason:'Conflicting or repeated label '+r.suborderId+' / '+r.awb});
+     const previous=orders.get(r.suborderId)||awbs.get(r.awb);
+     if(previous){
+       if(previous.suborderId===r.suborderId&&previous.awb===r.awb&&
+          previous.invoiceNo===r.invoiceNo&&previous.invoiceDate===r.invoiceDate&&
+          previous.invoiceTotalPaise===r.invoiceTotalPaise&&previous.printedGSTPaise===r.printedGSTPaise){
+         exactDuplicates++;continue; // Same label reprinted; do not create duplicate orders.
+       }
+       review.push({file:'Multiple PDFs',reason:'Conflicting label for '+r.suborderId+' / '+r.awb});
        continue;
      }
-     orders.add(r.suborderId);awbs.add(r.awb);rows.push(r);
+     orders.set(r.suborderId,r);awbs.set(r.awb,r);rows.push(r);
    }
    if(rows.length>50)throw Error('Select a smaller batch (50 labels maximum)');
    preview.replaceChildren();
-   preview.append(el('p','nv-track-note',rows.length+' unambiguous shipping labels extracted; '+review.length+' pages need review. Originals stay only on your device.'));
-   for(const r of rows)preview.append(el('p','nv-track-note','Order '+r.suborderId+' · Invoice '+r.invoiceNo+' · AWB '+r.awb));
+   preview.append(el('p','nv-track-note',rows.length+' unique Nividhi invoices · '+exactDuplicates+' identical duplicate labels ignored · '+review.length+' pages excluded or needing review. Files stay on your device.'));
+   for(const r of rows)preview.append(el('p','nv-track-note','✓ '+r.invoiceNo+' · '+r.invoiceDate+' · '+asMoney(r.invoiceTotalPaise)+' · GST '+asMoney(r.printedGSTPaise)+' · '+r.carrier.toUpperCase()+' '+r.awb+' · Order '+r.suborderId));
    for(const r of review.slice(0,12))preview.append(el('p','nv-track-error',r.file+(r.page?' page '+r.page:'')+': '+r.reason));
    return {rows,review};
  }
@@ -279,17 +280,17 @@ function gstDeskShippingClient(){
    const files=[...input.files];
    busy=true;
    try{
-     status.textContent='Reading selected shipping labels locally. No PDF is uploaded.';
+     status.textContent='Reading seller, order, AWB, tax invoice date and totals locally. Original PDFs/ZIPs are not uploaded.';
      const {rows}=await extractLabelFiles(files,preview);
      if(!rows.length){status.textContent='No unambiguous shipping label mappings were found. Check the reviewed pages.';return}
-     if(!confirm('Save '+rows.length+' seller-verified Nividhi label AWBs to D1? Other sellers are excluded. Only parsed identifiers and hashes are saved. No PDFs, ZIPs or carrier requests.'))return;
+     if(!confirm('Validate '+rows.length+' Nividhi invoices against D1 and save their verified AWB/date/amount/GST audit? Original PDFs, ZIPs and buyer addresses will not be uploaded. No carrier checks will run.'))return;
      const result=await submit('/api/shipping/labels/import','POST',{items:rows});
      const outcomes=result.results.map(x=>x.outcome);
-     status.textContent=result.saved+' AWBs saved. '+outcomes.filter(x=>x==='already_saved').length+' already saved. '+
-       outcomes.filter(x=>!['saved','already_saved'].includes(x)).length+' need manual review. No tracking statuses were fetched.';
+     status.textContent=result.saved+' new AWBs · '+outcomes.filter(x=>x==='already_saved').length+' existing AWBs · '+(result.invoiceAuditsSaved||0)+' invoice audit records verified · '+
+       outcomes.filter(x=>!['saved','already_saved'].includes(x)).length+' entries to review. No tracking statuses were fetched.';
      preview.replaceChildren();
-     for(const r of result.results)preview.append(el('p','nv-track-note',r.invoiceNo+' · '+r.awb+' · '+r.outcome));
-     await fetchOrders();
+     for(const r of result.results)preview.append(el('p','nv-track-note',(r.invoiceNo||r.suborderId)+' · '+r.awb+' · '+r.outcome+(r.taxDiscrepancy?' · Printed GST differs from existing invoice; preserved for review':'')));
+     await fetchOrders(true);
    }catch(e){status.textContent='Label import could not complete: '+e.message}
    finally{busy=false;input.value=''}
  }
@@ -321,13 +322,16 @@ function gstDeskShippingClient(){
    const actions=el('div','nv-track-actions');
    actions.append(btn('🔍 Check Pending Valmo Status',()=>checkStatus('pending')));
    categoryControls.append(actions);
-   const more=el('details','nv-track-detail');
-   const moreSummary=el('summary','','Import additional shipping-label PDFs (optional)');
-   const info=el('p','nv-track-note','PDF/ZIP files are read in your browser. Only seller-verified Nividhi AWB mappings are saved in D1; no documents are stored.');
-   const labels=el('input');labels.type='file';labels.multiple=true;labels.accept='.pdf,.zip,application/pdf,application/zip';labels.setAttribute('aria-label','Choose shipping label PDFs or ZIP');
-   const preview=el('div');preview.setAttribute('aria-live','polite');
-   more.append(moreSummary,info,labels,btn('Parse & Save Shipping Labels',()=>importLabels(labels,preview)),preview);
-   categoryControls.append(more);categoryDetail.append(categoryControls);
+   // Keep the independent PDF/ZIP importer visible even when no status card is open.
+   const uploader=el('section','nv-upload-card');
+   uploader.append(el('h3','','▤ Import shipping labels & invoice data'));
+   uploader.append(el('p','nv-track-note','Select Meesho Sub Order Labels PDFs or a ZIP. We verify NIDHI GSTIN, AWB, suborder, invoice number, invoice date and totals against your D1 invoices. No documents or buyer details are uploaded or stored.'));
+   const labels=el('input');labels.type='file';labels.multiple=true;
+   labels.accept='.pdf,.zip,application/pdf,application/zip';
+   labels.setAttribute('aria-label','Select Meesho shipping-label PDF or ZIP files');
+   const preview=el('div','nv-parse-audit');preview.setAttribute('aria-live','polite');
+   uploader.append(labels,btn('▣ Parse, Validate & Save to D1',()=>importLabels(labels,preview)),preview);
+   tracker.append(uploader);
    rows=el('div');categoryDetail.append(rows);
    tracker.append(categoryDetail,status);
    // Do not reveal individual orders until a summary card is opened.
@@ -345,4 +349,4 @@ function gstDeskShippingClient(){
  };
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 }
-export const shippingClientJS='('+gstDeskShippingClient.toString()+')();';
+export const shippingClientJS=labelParserBrowserJS+'('+gstDeskShippingClient.toString()+')();';
