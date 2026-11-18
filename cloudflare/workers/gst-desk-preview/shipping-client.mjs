@@ -14,6 +14,7 @@ function gstDeskShippingClient(){
  const status=el('p','nv-track-status','');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
  const btn=(label,fn,css='')=>{const b=el('button','nv-track-button '+css,label);b.type='button';b.onclick=fn;return b};
  let container,tracker,rows,listFilter,activeOverview=null,shippingCounts=null,busy=false;
+ let activeCategory=null,categoryGrid=null,categoryDetail=null,categoryHeading=null,categoryControls=null;
  let snapshot=null,lastFetchedLabel=null,refreshBtn=null,loading=false;
  const cacheKey='gstdesk-ui:shipping:v3:'+String(window.__GST_DESK_CACHE_SCOPE__||'private-owner');
  const localRead=()=>{try{const raw=localStorage.getItem(cacheKey);const val=raw?JSON.parse(raw):null;return val&&Array.isArray(val.data?.items)&&val.data?.counts&&Number.isFinite(Date.parse(val.fetchedAt))?val:null}catch{return null}};
@@ -23,6 +24,7 @@ function gstDeskShippingClient(){
  const moveToValmo=()=>document.querySelector('nav.tabs button[data-tab="valmo"]')?.click();
  const styles=el('style');
  styles.textContent='#nv-shipping-cards{margin:14px 0 22px}#nv-shipping-cards h3{font-size:17px;margin:0 0 10px;color:#1e3a2e}#nv-shipping-cards .nv-shipping-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px}#nv-shipping-cards .nv-shipping-card{background:#fff;border:1px solid #dfebdf;border-radius:13px;padding:15px;text-align:left;cursor:pointer;color:#1b3830;display:flex;flex-direction:column;gap:6px;min-height:103px}#nv-shipping-cards .nv-shipping-card strong{font-size:22px}#nv-shipping-cards .nv-shipping-card small{font-size:11px;color:#697a72}#nv-shipping-cards .nv-shipping-card:focus-visible{outline:3px solid #74bc99}#nv-shipping-tracker{border:1px solid #dfe9e2;border-radius:13px;padding:20px;margin:12px 0;background:#fff;color:#24382f}#nv-shipping-tracker h2{margin:0 0 7px}#nv-shipping-tracker p{color:#5e7569;font-size:13px}#nv-shipping-tracker .nv-track-summary{background:#f2f9f5;padding:11px;border-radius:9px;margin:10px 0}#nv-shipping-tracker .nv-track-row{border:1px solid #e2ebe4;border-radius:12px;padding:14px;margin:9px 0}#nv-shipping-tracker .nv-track-row strong{display:block}#nv-shipping-tracker .nv-track-row small{color:#708077}#nv-shipping-tracker .nv-track-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}#nv-shipping-tracker input,#nv-shipping-tracker select{padding:9px 10px;border:1px solid #cdded4;border-radius:7px;max-width:320px;width:100%;background:white;color:#173c2e}#nv-shipping-tracker .nv-track-button{background:#137a63;border:1px solid #137a63;border-radius:8px;color:#fff;padding:9px 13px;cursor:pointer}#nv-shipping-tracker .nv-track-button:disabled{opacity:.45;cursor:not-allowed}#nv-shipping-tracker .nv-track-secondary{background:#eaf6ef;color:#145440;border-color:#d7eade}#nv-shipping-tracker .nv-track-detail{background:#f9fcfa;padding:12px;border-radius:8px;margin:10px 0}#nv-shipping-tracker .nv-track-note{font-size:12px;color:#697b6e}#nv-shipping-tracker .nv-track-error{color:#a42525}';
+ styles.textContent+= '#nv-shipping-tracker .nv-refresh-wide{display:flex;width:100%;max-width:none;min-height:56px;align-items:center;justify-content:center;gap:10px;font-size:17px;font-weight:750;border-radius:13px;margin:8px 0 15px;box-shadow:0 4px 12px #1067501c}#nv-shipping-tracker .nv-category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin:18px 0}#nv-shipping-tracker .nv-category{border:1px solid #d4e6dc;background:linear-gradient(145deg,#f4fbf7,#fff);color:#153c2f;text-align:left;border-radius:16px;min-height:145px;padding:15px;display:flex;flex-direction:column;gap:9px;align-items:flex-start;cursor:pointer;width:100%}#nv-shipping-tracker .nv-category[data-category="transit"]{background:linear-gradient(145deg,#f2f7ff,#fff);border-color:#d4e3f4}#nv-shipping-tracker .nv-category[aria-expanded="true"]{outline:2px solid #138365;box-shadow:0 4px 16px #13836528}#nv-shipping-tracker .nv-category .nv-cat-icon{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:#e2f4e9;font-size:20px}#nv-shipping-tracker .nv-category[data-category="transit"] .nv-cat-icon{background:#e5f0fe}#nv-shipping-tracker .nv-cat-number{font-size:32px;line-height:1.05;font-weight:800;letter-spacing:-1px;color:#193a30}#nv-shipping-tracker .nv-cat-name{font-size:13px;font-weight:750}#nv-shipping-tracker .nv-category-detail{border-top:1px solid #e4ece6;margin-top:8px;padding-top:15px}#nv-shipping-tracker .nv-category-detail[hidden],#nv-shipping-tracker .nv-cat-management[hidden]{display:none!important}#nv-shipping-tracker .nv-hidden-counter{color:#677b70;font-size:12px;margin-bottom:3px}@media(max-width:380px){#nv-shipping-tracker .nv-category{padding:12px;min-height:134px}#nv-shipping-tracker .nv-cat-number{font-size:29px}}';
  document.head.append(styles);
  const toInt=n=>Number(n||0);
  const summaryMarkup=async()=>{
@@ -55,12 +57,24 @@ function gstDeskShippingClient(){
    target.append(g);
    target.append(el('p','nv-track-note','These figures represent imported invoice-linked orders only. Unknown delivery statuses are not counted as in transit or delivered.'));
  }
+ const categoryCount=(name)=>name==='delivered'?Number(shippingCounts?.total_delivered??shippingCounts?.verified_delivered??0):Number(shippingCounts?.verified_in_transit||0);
  function renderTrackerCounts(){
-   if(!tracker||!shippingCounts)return;
-   let div=tracker.querySelector('.nv-track-summary');
-   if(!div){div=el('p','nv-track-summary');tracker.insertBefore(div,tracker.querySelector('.nv-track-actions'))}
-   const c=shippingCounts;
-   div.textContent=c.known_orders+' invoiced orders · '+(c.total_labels||0)+' verified shipping-label AWBs · '+c.awaiting_awb+' invoiced orders missing AWB · '+c.verified_delivered+' verified delivered · '+c.verified_in_transit+' in transit · '+c.eligible_for_check+' eligible for manual Valmo checks.';
+   if(!categoryGrid||!shippingCounts)return;
+   for(const b of categoryGrid.querySelectorAll('[data-category]')){
+     const type=b.dataset.category,n=categoryCount(type);
+     const total=b.querySelector('.nv-cat-number');
+     if(total)total.textContent=String(n);
+     b.setAttribute('aria-label',(type==='delivered'?'Total Delivered: ':'Total In Transit: ')+n+'. Tap to view details');
+     b.setAttribute('aria-expanded',activeCategory===type?'true':'false');
+   }
+   if(categoryHeading&&activeCategory)categoryHeading.textContent=(activeCategory==='delivered'?'✅ Delivered shipments':'🚚 In transit & out for delivery')+' · '+categoryCount(activeCategory);
+ }
+ function showCategory(type){
+   activeCategory=activeCategory===type?null:type;
+   if(categoryDetail)categoryDetail.hidden=!activeCategory;
+   if(categoryControls)categoryControls.hidden=activeCategory!=='transit';
+   renderTrackerCounts();
+   showSnapshot();
  }
  async function checkStatus(mode,suborderId){
    if(busy)return;busy=true;for(const b of tracker.querySelectorAll('button'))b.disabled=true;
@@ -86,7 +100,9 @@ function gstDeskShippingClient(){
    const dl=el('div','nv-track-detail');
    dl.append(el('p','','Invoice: '+row.invoiceNo+' · Order: '+row.suborderId),el('p','','Invoice value: '+asMoney(row.invoiceValuePaise)+' · Invoice date: '+row.invoiceDate));
    dl.append(el('p','','Courier: '+row.carrier+' · AWB: '+(row.awb||'Not recorded')));
-   dl.append(el('p','','Verified status: '+formatStatus(row.status)));
+   dl.append(el('p','',row.ownerConfirmedDelivered?'Status: Delivered — owner-confirmed; carrier delivery not verified':'Verified status: '+formatStatus(row.status)));
+   if(row.ownerConfirmedDelivered)dl.append(el('p','nv-track-note','Actual delivery date is unknown. The saved timestamp records the owner confirmation, not the delivery event.'));
+   if(row.ownerConfirmationRecordedAt)dl.append(el('p','nv-track-note','Owner confirmation recorded: '+row.ownerConfirmationRecordedAt+' UTC'));
    dl.append(el('p','','Delivered date (IST): '+(row.deliveredDateIST||'Not verified')));
    dl.append(el('p','','Last checked: '+(row.lastCheckedAt||'Never')));
    if(row.estimatedDeliveryText)dl.append(el('p','','Estimated delivery (not actual): '+row.estimatedDeliveryText));
@@ -103,7 +119,7 @@ function gstDeskShippingClient(){
    for(const order of items){
      const box=el('article','nv-track-row');
      box.append(el('strong','','Order '+order.suborderId),el('small','',order.invoiceNo+' · '+order.orderDate+' · '+asMoney(order.invoiceValuePaise)));
-     box.append(el('p','',formatStatus(order.status)+' · '+(order.awb||'AWB not available in the provided Nividhi shipping labels')+(order.deliveredDateIST?' · Delivered '+order.deliveredDateIST:'')));
+     box.append(el('p','',order.ownerConfirmedDelivered?'Delivered · Owner-confirmed · Actual delivery date unknown · '+(order.awb||'AWB not recorded'):(formatStatus(order.status)+' · '+(order.awb||'AWB not available in the provided Nividhi shipping labels')+(order.deliveredDateIST?' · Delivered '+order.deliveredDateIST:''))));
      if(order.estimatedDeliveryText)box.append(el('p','nv-track-note','Carrier ETA: '+order.estimatedDeliveryText+' (estimate, not delivery confirmation)'));
      const actions=el('div','nv-track-actions'),showDetail=btn('View shipment details',()=>{const existing=box.querySelector('.nv-track-detail');if(existing)existing.remove();else box.append(detail(order))},'nv-track-secondary');
      actions.append(showDetail);
@@ -122,10 +138,16 @@ function gstDeskShippingClient(){
   function showSnapshot(){
    if(!snapshot||!rows)return false;
    shippingCounts=snapshot.data.counts;renderDashboard();renderTrackerCounts();
-   const all=snapshot.data.items||[],filter=listFilter?.value||'all';
-   const filtered=all.filter(x=>filter==='all'||(filter==='awaiting_awb'&&!x.awb)||(filter==='pending'&&x.awb&&x.status!=='delivered'&&x.status!=='returned')||(filter==='delivered'&&x.status==='delivered')||(filter==='returned'&&x.status==='returned'));
-   drawOrders(filtered);
-   if(snapshot.data.hasMore)rows.append(el('p','nv-track-note','Showing first 50 imported orders.'));
+   const all=snapshot.data.items||[];
+   if(!activeCategory){
+     rows.replaceChildren();
+     if(categoryDetail)categoryDetail.hidden=true;
+   }else{
+     if(categoryDetail)categoryDetail.hidden=false;
+     const filtered=all.filter(x=>activeCategory==='delivered'?x.status==='delivered':['in_transit','out_for_delivery'].includes(x.status));
+     drawOrders(filtered);
+     if(snapshot.data.hasMore)rows.append(el('p','nv-track-note','Showing first 50 imported orders.'));
+   }
    if(lastFetchedLabel)lastFetchedLabel.textContent='Last fetched from D1: '+fmtTime(snapshot.fetchedAt)+' · Showing saved snapshot until you refresh.';
    return true;
  }
@@ -134,7 +156,7 @@ function gstDeskShippingClient(){
    if(!force&&showSnapshot())return;
    if(loading)return;
    loading=true;
-   if(refreshBtn){refreshBtn.disabled=true;refreshBtn.textContent='Refreshing…'}
+   if(refreshBtn){refreshBtn.disabled=true;refreshBtn.textContent='↻ Refreshing…'}
    if(!snapshot)rows.replaceChildren(el('p','','Loading records from Cloudflare D1…'));
    try{
      // A user-initiated refresh (or an empty first visit) is the only D1 request.
@@ -158,7 +180,7 @@ function gstDeskShippingClient(){
      status.textContent='Refresh unavailable: '+e.message+(snapshot?' · Existing snapshot is unchanged.':'');
    }finally{
      loading=false;
-     if(refreshBtn){refreshBtn.disabled=false;refreshBtn.textContent='Refresh Data'}
+     if(refreshBtn){refreshBtn.disabled=false;refreshBtn.textContent='↻ Refresh Data'}
    }
  }
 
@@ -274,34 +296,43 @@ function gstDeskShippingClient(){
  function mountValmo(){
    const section=document.getElementById('valmo');if(!section)return;
    const legacy=section.querySelector(':scope > .card');
-   if(legacy?.querySelector('#valmo-awbs'))legacy.remove(); // Only remove the obsolete browser-only form, never the database shell.
+   if(legacy?.querySelector('#valmo-awbs'))legacy.remove();
    tracker=section.querySelector(':scope > #nv-shipping-tracker');
    if(!tracker){tracker=el('div');tracker.id='nv-shipping-tracker';section.insertBefore(tracker,section.firstChild)}
-   tracker.replaceChildren(); // Reuse the server-rendered D1 shell, including on reload.
+   tracker.replaceChildren();
    tracker.append(el('h2','','Valmo Tracking · Saved orders'));
-   const cacheTools=el('div','nv-track-actions');
-   lastFetchedLabel=el('span','nv-track-note','Last fetched: no saved snapshot');
-   refreshBtn=btn('Refresh Data',()=>fetchOrders(true));
-   cacheTools.append(lastFetchedLabel,refreshBtn);
-   tracker.append(cacheTools);
-   tracker.append(el('p','','All invoice-linked orders are preloaded in D1. Enter confirmed AWBs from Meesho shipping labels, then click Check Status only when needed.'));
-   tracker.append(el('p','nv-track-note','No automatic checks. Verified delivered shipments remain in D1 and are excluded from future checks. Unknown AWBs/statuses stay unknown.'));
-   const importBox=el('div','nv-track-detail');
-   importBox.append(el('strong','','Import Meesho shipping-label PDFs'));
-   importBox.append(el('p','nv-track-note','Choose Sub Order Labels PDFs (or ZIP of those labels). The AWB is above the barcode. Tax-invoice-only ZIPs have no AWB. Parsing happens in this browser; original files are never uploaded or stored.'));
-   const labels=el('input');labels.type='file';labels.multiple=true;labels.accept='.pdf,.zip,application/pdf,application/zip';labels.setAttribute('aria-label','Choose shipping labels PDFs or ZIP');
+   lastFetchedLabel=el('p','nv-track-note','Last fetched: no saved snapshot');
+   tracker.append(lastFetchedLabel);
+   refreshBtn=btn('↻ Refresh Data',()=>fetchOrders(true),'nv-refresh-wide');
+   tracker.append(refreshBtn);
+
+   categoryGrid=el('div','nv-category-grid');
+   for(const [type,icon,heading] of [['delivered','✅','Total Delivered'],['transit','🚚','Total In Transit']]){
+     const b=btn('',()=>showCategory(type),'nv-category');
+     b.dataset.category=type;b.setAttribute('aria-expanded','false');
+     b.append(el('span','nv-cat-icon',icon),el('span','nv-cat-name',heading),el('strong','nv-cat-number','—'));
+     categoryGrid.append(b);
+   }
+   tracker.append(categoryGrid);
+   categoryDetail=el('div','nv-category-detail');categoryDetail.hidden=true;
+   categoryHeading=el('h3','','');
+   categoryDetail.append(categoryHeading);
+   categoryControls=el('div','nv-cat-management');categoryControls.hidden=true;
+   const actions=el('div','nv-track-actions');
+   actions.append(btn('🔍 Check Pending Valmo Status',()=>checkStatus('pending')));
+   categoryControls.append(actions);
+   const more=el('details','nv-track-detail');
+   const moreSummary=el('summary','','Import additional shipping-label PDFs (optional)');
+   const info=el('p','nv-track-note','PDF/ZIP files are read in your browser. Only seller-verified Nividhi AWB mappings are saved in D1; no documents are stored.');
+   const labels=el('input');labels.type='file';labels.multiple=true;labels.accept='.pdf,.zip,application/pdf,application/zip';labels.setAttribute('aria-label','Choose shipping label PDFs or ZIP');
    const preview=el('div');preview.setAttribute('aria-live','polite');
-   importBox.append(labels,btn('Parse & Save Shipping Labels',()=>importLabels(labels,preview)),preview);
-   tracker.append(importBox);
-   const bar=el('div','nv-track-actions');
-   bar.append(btn('Check Status · Pending AWBs',()=>checkStatus('pending')));
-   listFilter=el('select');listFilter.setAttribute('aria-label','Filter saved shipments');
-   [['all','All orders'],['awaiting_awb','Awaiting AWB'],['pending','Trackable (not delivered)'],['delivered','Delivered'],['returned','Returned to seller']].forEach(([v,l])=>{const option=el('option','',l);option.value=v;listFilter.append(option)});
-   listFilter.onchange=()=>showSnapshot();bar.append(listFilter);
-   tracker.append(bar,status);rows=el('div');tracker.append(rows);
-   // Load the last saved private snapshot immediately, without waiting for a network call.
-   // A freshly generated server snapshot is used on a device that has no local snapshot.
-   snapshot=checkedSnapshot(localRead())||checkedSnapshot(window.__GST_DESK_SHIPPING_SEED__);
+   more.append(moreSummary,info,labels,btn('Parse & Save Shipping Labels',()=>importLabels(labels,preview)),preview);
+   categoryControls.append(more);categoryDetail.append(categoryControls);
+   rows=el('div');categoryDetail.append(rows);
+   tracker.append(categoryDetail,status);
+   // Do not reveal individual orders until a summary card is opened.
+   const fromLocal=checkedSnapshot(localRead()),fromServer=checkedSnapshot(window.__GST_DESK_SHIPPING_SEED__);
+   snapshot=fromServer&&(!fromLocal||Date.parse(fromServer.fetchedAt)>Date.parse(fromLocal.fetchedAt))?fromServer:fromLocal;
    if(snapshot){showSnapshot();localSave(snapshot)}
    else fetchOrders(true);
  }
