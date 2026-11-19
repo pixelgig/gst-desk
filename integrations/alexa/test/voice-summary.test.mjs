@@ -179,6 +179,39 @@ test('Lambda routes flexible future requests through read-only backend', () => {
   assert.ok(!source.includes('eval('));
 });
 
+test('Alexa answers common questions about its actual capabilities and access', async () => {
+  const expected = [
+    ['CapabilitiesIntent','रीड ओनली'],
+    ['AccessScopeIntent','रीड ओनली'],
+    ['DataAvailabilityIntent','24'],
+    ['QuestionExamplesIntent','कितने पार्सल डिलीवर'],
+    ['DataFreshnessIntent','लाइव ऑर्डर'],
+    ['PrivacySafetyIntent','ग्राहक का नाम'],
+  ];
+  for (const [intentName, excerpt] of expected) {
+    const r=await handleVoiceQuery(voiceQueryRequest(intentName), makeEnv());
+    assert.equal(r.status,200,intentName);
+    const data=await r.json();
+    assert.equal(data.available,true,intentName);
+    assert.equal(data.readOnly,true);
+    assert.ok(data.spokenText.includes(excerpt), intentName);
+    assert.ok(!data.spokenText.includes('owner@example.test'));
+  }
+  const freeForm=await handleVoiceQuery(
+    voiceQueryRequest('BusinessQueryIntent','तुम्हारे पास क्या डेटा है'),makeEnv());
+  assert.equal((await freeForm.json()).available,true);
+});
+
+test('self-knowledge does not invent unverified data access', () => {
+  const fake={availableMetrics:{drafts:false,shipmentBreakdown:false,ordersToday:false}};
+  const cap=answerSavedVoiceMetric('CapabilitiesIntent',null,fake);
+  assert.ok(cap.spokenText.includes('कोई सत्यापित बिजनेस डेटा नहीं'));
+  const data=answerSavedVoiceMetric('DataAvailabilityIntent',null,fake);
+  assert.equal(data.available,false);
+  const restricted=answerSavedVoiceMetric('AccessScopeIntent',null,fake);
+  assert.ok(restricted.spokenText.includes('रिकॉर्ड बदल'));
+});
+
 test('Hindi interaction model has unique utterances and expected intent names', () => {
   const model = JSON.parse(readFileSync(
     new URL('../interaction-models/hi-IN.json', import.meta.url), 'utf8'
@@ -203,6 +236,17 @@ test('Hindi interaction model has unique utterances and expected intent names', 
   assert.equal(flexible.slots.length,1);
   assert.equal(flexible.slots[0].type,'AMAZON.SearchQuery');
   assert.ok(flexible.samples.every(v=>v.includes('{question}') && v !== '{question}'));
+  // Regression: a previous model accidentally expanded Hindi strings into
+  // one-character utterances. Never ship a malformed interaction model.
+  assert.ok(all.length >= 300,'broad Hindi model with self-knowledge phrases');
+  assert.ok(all.every(v=>typeof v==='string' && v.length >= 8 &&
+    v.trim()===v),'no single Hindi character/whitespace samples');
+  for (const n of ['CapabilitiesIntent','AccessScopeIntent','DataAvailabilityIntent',
+    'QuestionExamplesIntent','DataFreshnessIntent','PrivacySafetyIntent']) {
+    const intent=intents.find(i=>i.name===n);
+    assert.ok(intent,'missing '+n);
+    assert.ok(intent.samples.length >= 8);
+  }
   assert.ok(intents.some(i=>i.name==='GSTDueIntent'));
   assert.ok(intents.some(i=>i.name==='InventorySummaryIntent'));
   assert.ok(intents.some(i=>i.name==='NetProfitIntent'));
