@@ -138,7 +138,7 @@ This table can be corrected as new source evidence emerges. Record any correctio
 
 This is the **editable summary** of current tasks. Append-only event history lives in §9 and must never be erased. When making a change, update a row **and** add the relevant event. Work on the owner's latest explicit request first.
 
-**Currently assigned task:** None after initialization of this file. No autonomous or unattended background work is implied.
+**Currently assigned task:** ALEXA-002 source review in draft PR #3. No autonomous or unattended background work is implied.
 
 | TASK-ID | Priority | Work item / acceptance target | Work | Delivery | Verification | Last owner / next step |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -152,6 +152,7 @@ This is the **editable summary** of current tasks. Append-only event history liv
 | **SETTLE-001** | P2 | Real marketplace fees/refunds/settlement and paid-versus-invoiced reconciliation | QUEUED | NOT_APPLICABLE | NOT_RUN | Depends on actual statements and costs |
 | **ORDER-001** | P2 | Determine legitimate Meesho order source; design notification intake | BLOCKED | NOT_APPLICABLE | NOT_RUN | No confirmed seller webhook/API yet |
 | **ALEXA-001** | P3 | Configure and test Hindi read-only skill with authorized owner Echo | QUEUED | NOT_APPLICABLE | NOT_RUN | Requires Alexa/Amazon configuration; no fake live metrics |
+| **ALEXA-002** | P3 | Match Alexa saved shipment breakdown to Valmo, add Hindi delivery/returned/AWB commands | SOURCE_DONE | PR_OPEN | NOT_RUN | ChatGPT / GPT-6; [draft PR #3](https://github.com/pixelgig/gst-desk/pull/3); CI and staging/Amazon deployment pending |
 
 **Task IDs are stable, not counters to overwrite.** New tasks use a concise category prefix (e.g. `UI-002`, `LIST-003`, `BUG-001`, `DEPLOY-001`). Do not recycle an ID after completion or cancellation. A major task can have child IDs (`LIST-001A`, `LIST-001B`) with a clear parent. Multiple agents must check latest file before reserving an ID.
 
@@ -165,16 +166,16 @@ The table below is mutable latest-state guidance; details must also appear in th
 
 | Field | Current value |
 | --- | --- |
-| Active owner task | None: documentation initialization completed |
-| Current agent | ChatGPT / GPT-6, documented ledger bootstrapping |
-| Branch / expected base | `main`; re-fetch HEAD before any new work |
-| Work-in-progress PRs/branches | Not assessed; must check before taking a code task |
+| Active owner task | ALEXA-002: Voice shipment breakdown source complete; draft PR #3 awaiting CI/review |
+| Current agent | OpenAI / ChatGPT, GPT-6, Alexa shipment voice work (source / PR only) |
+| Branch / expected base | `feature/alexa-shipment-breakdown-20261119` off `main`; re-fetch HEAD before further edits |
+| Work-in-progress PRs/branches | [Draft PR #3](https://github.com/pixelgig/gst-desk/pull/3) Alexa shipment breakdown |
 | Uncommitted edits | Unknown outside current GitHub connector session |
-| Last completed task | DOC-001, created `AGENTS.md`, corrected Markdown and linked from README |
+| Last completed task | DOC-001; ALEXA-002 source commit(s) in PR #3, deployment/acceptance pending |
 | Last verified prod browser | Not verified during this documentation-only task |
-| Open risks/blockers | UI-001 real signed-in mobile check; official order feed absent; AI Listing templates not yet supplied |
-| Next recommended action | Address owner's next explicit request, or prioritize UI-001 and LIST-001 after owner input |
-| Latest ledger checkpoint | EVT-20261119-002; see linked GitHub commits |
+| Open risks/blockers | Alexa-hosted credentials not configured, staging module not redeployed from PR #3, Echo unverified, user voice can't safely disclose individual private order identifiers, Meesho live feed absent |
+| Next recommended action | Validate PR #3 CI; merge after review; deploy staging with bindings and Access preserved; sync Alexa handler/model and configure private token; test on real Echo |
+| Latest ledger checkpoint | EVT-20261119-003 (ALEXA-002), draft PR #3 |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -309,4 +310,22 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 - **D1/cost/security:** No database change, no paid resources, no private business data.
 - **Limitations:** Agents still need to actually read and obey these instructions; README discoverability is not technical enforcement.
 - **Next handoff:** Owner's next request; read the complete ledger and [brain.md](./brain.md) before touching source.
+
+### EVT-20261119-003 — ALEXA-002 — Read-only Hindi shipment breakdown alignment
+- **Date/time:** 2026-11-19 IST (date only; exact time not independently captured).
+- **AI identity:** OpenAI / ChatGPT; **model: GPT-6**; context: owner-requested GitHub/Cloudflare connector workflow.
+- **Trigger:** Owner requested continuing Alexa GST Desk integration with available shipment statuses, including which are delivered and to be delivered; prior API counted only carrier-confirmed deliveries.
+- **Work:** SOURCE_DONE (source changes); **Delivery:** PR_OPEN (draft [#3](https://github.com/pixelgig/gst-desk/pull/3)); **Verification:** NOT_RUN (automated CI pending at initial ledger entry). Separate read-only production D1 SQL contract query succeeded.
+- **Before:** Saved D1 contained 24 shipment candidates; 9 carrier-confirmed delivered; 4 owner-confirmed Delhivery delivered; 2 in transit/out for delivery; 8 without AWB; 1 returned. Previous voice endpoint counted 9 delivered while Valmo dashboard counted 13. Amazon skill worked in simulator but spoke "connection not configured".
+- **Intended result:** A private, read-only Hindi voice summary that reports honest combined delivered counts, preserves evidence provenance, distinguishes moving vs unknown status vs returns, and never claims live Meesho sync.
+- **After (source only):** Updated voice-summary SQL to report verifiedDelivered, ownerConfirmedDelivered, totalDelivered, verifiedInTransit, awaitingAwb, and returned with shipmentBreakdown availability flag. Updated Alexa Lambda Hindi answers and added DeliveryOverviewIntent, AwaitingAwbIntent and ReturnedOrdersIntent to the model. Replaced global fetch with Node.js 16-compatible HTTPS request. Updated regression tests, integration documentation and brain.md.
+- **Affected files:** `cloudflare/workers/gst-desk-api-staging/voice-summary.mjs` — `handleVoiceSummary`; `integrations/alexa/lambda/index.js` — `getSummary` and intent handlers; `integrations/alexa/interaction-models/hi-IN.json`; `integrations/alexa/test/voice-summary.test.mjs`; `docs/integrations/alexa-hindi.md`; `brain.md`; `AGENTS.md`.
+- **Design rationale:** [brain.md Alexa chapter](./brain.md#103-hindi-amazon-alexa-voice), [source/security model](./brain.md#7-data-model-lineage-and-accounting-invariants). Owner-confirmed delivery is not carrier proof and must never receive a fabricated delivered timestamp. Order references are private and not yet spoken on a shared Echo.
+- **Evidence:** [draft PR #3](https://github.com/pixelgig/gst-desk/pull/3). Read-only D1 query with exact proposed SQL returned `known_orders=24`, `verified_delivered=9`, `owner_confirmed_delivered=4`, `total_delivered=13`, `verified_in_transit=2`, `awaiting_awb=8`, `returned=1`. This is not a claim that automated tests or Echo tests passed.
+- **Deployment:** Not deployed from this branch to Cloudflare or Amazon. Existing staging endpoint was previously deployed and verified separately; do not confuse that version with this source patch. Existing `gst-desk-preview` production site not modified.
+- **Data changes:** None; no D1 writes or migrations, no added service or billing.
+- **Cost / security / performance:** Reuses D1; bearer-protected owner-scoped, aggregate-only API. User partially showed real token in screenshot; rotate before final Alexa connection as precaution. No source files include secret values.
+- **Known defects / remaining work:** GitHub CI pending; Alexa-hosted application still lacks verified private configuration, suitable HTTPS route must be enabled under scoped protections, and actual device not tested. Source cannot access up-to-the-minute Meesho orders. Per-order spoken identifiers need separate authorization/privacy decisions.
+- **Rollback:** Revert PR changes for code-only rollback; for any later Cloudflare staging deployment use previously verified staging Worker version; no D1 rollback involved.
+- **Next handoff:** ALEXA-001 / ALEXA-002 — review CI, merge after validation, then stage updated voice code preserving active D1, secrets and Access; sync Amazon skill model and handler; verify no-token 401, owner 200, actual Hindi commands.
 
