@@ -2,6 +2,7 @@
 // GST Desk integration: Alexa voice is only a read-only client of the existing API.
 // Amazon must deliver events via a skill-specific Alexa-hosted/Lambda endpoint.
 const Alexa = require('ask-sdk-core');
+const https = require('node:https');
 
 const say = (handlerInput, message, reprompt) => {
   const builder = handlerInput.responseBuilder.speak(message);
@@ -35,20 +36,35 @@ async function getSummary() {
     headers['CF-Access-Client-Id'] = clientId;
     headers['CF-Access-Client-Secret'] = clientSecret;
   }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 3500);
-  try {
-    const response = await fetch(url, {method: 'GET', headers, signal: controller.signal});
-    if (!response.ok) throw Error('api_unavailable');
-    const data = await response.json();
-    if (data.readOnly !== true || !data.availableMetrics || !data.drafts ||
-        !Number.isSafeInteger(data.drafts.count) || data.drafts.count < 0) {
-      throw Error('invalid_api_response');
-    }
-    return data;
-  } finally {
-    clearTimeout(timer);
+  // Alexa-hosted skills may use Node.js 16, which has no built-in fetch.
+  // Reject redirects and unusually large responses; never log bearer credentials.
+  const data = await new Promise((resolve, reject) => {
+    const request = https.get(url, {headers, timeout: 3500}, response => {
+      if (response.statusCode !== 200) {
+        response.resume();
+        reject(Error('api_unavailable'));
+        return;
+      }
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', chunk => {
+        body += chunk;
+        if (body.length > 32768) request.destroy(Error('response_too_large'));
+      });
+      response.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch { reject(Error('invalid_json')); }
+      });
+      response.on('error', reject);
+    });
+    request.on('timeout', () => request.destroy(Error('api_timeout')));
+    request.on('error', reject);
+  });
+  if (data.readOnly !== true || !data.availableMetrics || !data.drafts ||
+      !Number.isSafeInteger(data.drafts.count) || data.drafts.count < 0) {
+    throw Error('invalid_api_response');
   }
+  return data;
 }
 
 const isIntent = name => input => Alexa.getRequestType(input.requestEnvelope) === 'IntentRequest' &&
