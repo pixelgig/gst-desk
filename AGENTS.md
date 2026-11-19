@@ -138,7 +138,7 @@ This table can be corrected as new source evidence emerges. Record any correctio
 
 This is the **editable summary** of current tasks. Append-only event history lives in §9 and must never be erased. When making a change, update a row **and** add the relevant event. Work on the owner's latest explicit request first.
 
-**Currently assigned task:** ALEXA-001 Amazon Hindi model built, Lambda deployed, and LaunchRequest simulator confirmed. Private Alexa-to-Cloudflare credentials and endpoint remain unconfigured; no D1 voice data connected yet.
+**Currently assigned task:** ALEXA-001 GST Desk Hindi Alexa Skill owner-submitted for Amazon certification; screenshot status In Review. Public Live approval and private Alexa-to-Cloudflare credentials/data connectivity remain unverified.
 
 | TASK-ID | Priority | Work item / acceptance target | Work | Delivery | Verification | Last owner / next step |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -169,7 +169,7 @@ The table below is mutable latest-state guidance; details must also appear in th
 
 | Field | Current value |
 | --- | --- |
-| Active owner task | ALEXA-005 public legal pages deployed and verified; owner must add privacy URL to Alexa, confirm export compliance, approve actual support contact email, and configure private voice API later |
+| Active owner task | ALEXA-001: Amazon Alexa GST Desk skill submitted and In Review (2026-11-19); track certification outcome, resolve any Amazon feedback; private voice API still unconfigured; legal contact placeholder remains |
 | Current agent | OpenAI / ChatGPT; model GPT-6; Alexa legal disclosure pages via isolated Cloudflare Worker, preserving business production |
 | Branch / expected base | `main` following merged PR #4; always re-fetch HEAD before future work |
 | Work-in-progress PRs/branches | PR #3 and PR #4 merged to main; recheck fresh branches/PRs before edits |
@@ -177,8 +177,8 @@ The table below is mutable latest-state guidance; details must also appear in th
 | Last completed task | ALEXA-005: legal pages HTTP 200 confirmed, Cloudflare deployment live and source merged to main via PR #5; support contact and export compliance pending |
 | Last verified prod browser | Not verified during this documentation-only task |
 | Open risks/blockers | Alexa-hosted skill ID/account secret configuration not yet verified; latest 62-intent model and generic Lambda not imported/built in Amazon; staging external HTTPS URL intentionally disabled; authenticated post-deploy POST /api/voice/query and physical Echo unverified; no live Meesho feed; shared-speaker privacy |
-| Next recommended action | Enter verified public privacy URL in Alexa Hindi store preview and save; owner reviews/export-compliance acknowledgement. Ask for an approved publicly listed support email to replace `[CONTACT EMAIL]` in both txt and Worker, then redeploy. Secure Alexa-to-D1 integration still pending. |
-| Latest ledger checkpoint | EVT-20261119-020 (ALEXA-005 legal pages merged to main; public URL verified, contact pending) |
+| Next recommended action | Check Amazon Certification status/email for approval, rejection or requested fixes. Do not confuse submission with public Live. Resolve real public contact email placeholder in privacy/terms with owner approval. Independently configure private Alexa-to-Cloudflare voice API and real authorized Echo test. |
+| Latest ledger checkpoint | EVT-20261119-021 (Amazon Alexa Skill submitted; certification In Review, not Live) |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -536,3 +536,14 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 - **Safety:** Production `gst-desk-preview`, private staging API, D1, secrets and existing Alexa Lambda unaffected. Public legal worker remains binding-free.
 - **Open requirement:** Both legal texts have literal `[CONTACT EMAIL]`; request expressly approved public business support address before final Amazon certification, then update `.txt` and Worker snapshot/redeploy and verify. Export-compliance acknowledgement must be reviewed/accepted by the owner. Private Alexa-to-business-data connection remains a separate incomplete workstream.
 - **Next handoff:** Owner pastes verified public Privacy URL into Distribution -> Skill Preview -> Hindi (IN), Terms URL into Terms of Use, saves and reruns Certification -> Validation; owner reviews export-compliance statement. No repeated Alexa code/model uploads.
+
+### EVT-20261119-021 — ALEXA-001 — GST Desk Hindi Alexa Skill submitted for Amazon certification
+- **Date/time:** 2026-11-19 Asia/Kolkata (screenshot date shows 2026-11-19; exact local submission time not independently recorded).
+- **AI identity logging event:** OpenAI / ChatGPT; GPT-6. Actual submission performed by the owner in Amazon Developer Console, not AI.
+- **Trigger/evidence:** Owner screenshot of Alexa Developer Console skill list. Green banner says GST Desk has been submitted; if preliminary checks pass, it will queue for review. Skill row: GST Desk; Hindi (IN); modified 2026-11-19; orange-dot In Review.
+- **Before:** Legal Privacy/Terms pages published and verified via separate Cloudflare Worker (EVT-019/020); Amazon Validation previously showed missing Privacy Policy URL and Export Compliance acknowledgement.
+- **After:** Amazon received the submission and displays In Review. Confirmed only by owner screenshot, not direct Amazon API. Do not claim approved, publicly Live, functional with D1, or Echo-tested. Do not ask to submit or rebuild again without new evidence.
+- **Scope/impact:** Owner changed Amazon submission state. No app source, Lambda code, production/staging Worker, or D1 edits. Documentation-only AGENTS update.
+- **Security/operations:** Alexa-hosted configured() security guard previously said voice connection not configured. Private Alexa-to-Cloudflare connection remains unverified and may block functional certification. Original public privacy/terms files still contain [CONTACT EMAIL]; obtain approved public support address and update legal Worker snapshot.
+- **Verification:** Submitted and In Review screenshot confirmed; certification outcome and actual public release still pending.
+- **Next handoff:** Track Amazon review outcome by Certification page/email. Later resolve any feedback, configure least-privilege Alexa credentials and read-only voice route, update approved legal contact and verify. Never confuse certification submission with successful business-data connectivity.
