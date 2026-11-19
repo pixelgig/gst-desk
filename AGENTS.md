@@ -138,7 +138,7 @@ This table can be corrected as new source evidence emerges. Record any correctio
 
 This is the **editable summary** of current tasks. Append-only event history lives in §9 and must never be erased. When making a change, update a row **and** add the relevant event. Work on the owner's latest explicit request first.
 
-**Currently assigned task:** ALEXA-001 Amazon-hosted Hindi model build initiated by owner using new Alexa JSON and Lambda code. Build outcome not yet confirmed; Alexa credentials and Echo acceptance still pending.
+**Currently assigned task:** ALEXA-001 Amazon Hindi interaction model successfully built per owner's Build History screenshot. Alexa Lambda deployment, credentials and Echo acceptance still unverified.
 
 | TASK-ID | Priority | Work item / acceptance target | Work | Delivery | Verification | Last owner / next step |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -168,7 +168,7 @@ The table below is mutable latest-state guidance; details must also appear in th
 
 | Field | Current value |
 | --- | --- |
-| Active owner task | ALEXA-001: owner reports replacing Alexa JSON and Lambda code; Amazon Build in progress per screenshot; verify Build History and Lambda deployment separately |
+| Active owner task | ALEXA-001: Amazon Hindi Build History confirms successful 2026-11-19 06:50 AM model build; verify Lambda Save/Deploy, credentials and voice simulator separately |
 | Current agent | OpenAI / ChatGPT; model GPT-6; Alexa self-knowledge question additions and model-quality repair |
 | Branch / expected base | `main` following merged PR #4; always re-fetch HEAD before future work |
 | Work-in-progress PRs/branches | PR #3 and PR #4 merged to main; recheck fresh branches/PRs before edits |
@@ -176,8 +176,8 @@ The table below is mutable latest-state guidance; details must also appear in th
 | Last completed task | ALEXA-004: 6 Alexa self-knowledge intents, malformed phrase repair, staging v10, main merge; Amazon sync still pending |
 | Last verified prod browser | Not verified during this documentation-only task |
 | Open risks/blockers | Alexa-hosted skill ID/account secret configuration not yet verified; latest 62-intent model and generic Lambda not imported/built in Amazon; staging external HTTPS URL intentionally disabled; authenticated post-deploy POST /api/voice/query and physical Echo unverified; no live Meesho feed; shared-speaker privacy |
-| Next recommended action | Inspect Amazon View build status and Errors/Warnings (red 1 in screenshot), repair model errors if present, confirm Code Save/Deploy; then configure private credentials/secure endpoint and test Echo |
-| Latest ledger checkpoint | EVT-20261119-011 (owner Amazon build started, result unverified) |
+| Next recommended action | Open Amazon Code -> lambda/index.js, verify latest code and click Save/Deploy; test invocation in Development simulator; configure private credentials and scoped HTTPS route before expecting real D1 answers |
+| Latest ledger checkpoint | EVT-20261119-012 (successful Amazon model build observed; Lambda verification pending) |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -439,3 +439,14 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 - **Evidence:** Owner's 2026-11-19 screenshot in project conversation (AWS Alexa developer console showing Build in progress and red 1). Screenshot is not an Amazon API response.
 - **Rollback:** Restore previous Amazon interaction model and Lambda code from prior deployment/version if needed; do not overwrite existing Cloudflare Worker or D1.
 - **Next handoff:** Open **View build status** or **Errors and Warnings**. Report success/failure and any exact error text. On success, verify Lambda Save/Deploy independently and test supported intents before connecting private Cloudflare voice endpoint. Append another ledger entry for actual outcome.
+
+### EVT-20261119-012 — ALEXA-001 — Amazon Hindi interaction model build succeeded
+- **Date/time:** 2026-11-19 (Asia/Kolkata); Amazon screenshot's last successful build timestamp displays **6:50 AM**, timezone of that UI timestamp not independently verified.
+- **AI identity recording this event:** OpenAI / ChatGPT; model GPT-6. Amazon console operations performed by project owner; do not attribute user's actual console actions to AI.
+- **Trigger/evidence:** Owner shared Build History screenshot for existing custom GST Desk skill showing “Last successful build: 11/19/2026 @ 6:50 AM” and the latest Hindi (India) build version **3**. Owner explicitly reported no error and successful build. This supersedes EVT-20261119-011's unverified/in-progress state.
+- **Before:** Owner had updated the Alexa interaction-model JSON and Lambda source, then started Build. Success/failure, Lambda Save/Deploy and runtime voice test were unknown.
+- **After:** Amazon interaction-model build **succeeded**; screenshot verifies successful model build, **not** a tested Lambda deployment, exact runtime connectivity, Alexa simulator recognition for every phrase or actual Echo/D1 data access. Expected GitHub source is `integrations/alexa/interaction-models/hi-IN.json` (62 intents, 322 Hindi sample phrases); the screenshot does not independently prove the contents of the built model are byte-for-byte identical.
+- **Work/delivery/verification:** Work ACTIVE; Amazon model BUILT_SUCCESSFULLY (owner-observed screenshot), backend/real Echo UNKNOWN. Separate Cloudflare staging v10 remains version-deployed under EVT-20261119-009; no new Cloudflare deployment or production GST Desk changes for this checkpoint.
+- **Data/security/cost:** No D1 writes or migrations, no secrets committed, no new paid resources. Public staging route remains disabled pending a properly scoped HTTPS/Amazon credential configuration.
+- **Rollback:** Amazon Build History retains earlier successful model versions; use console tooling to restore a prior version if necessary. Worker/D1 unaffected.
+- **Next handoff:** Confirm Amazon Code -> lambda/index.js uses latest main source and clicks Save/Deploy, then Test -> Development with “जीएसटी डेस्क खोलो”. The current Lambda intentionally reports unconfigured private voice connection until credentials and HTTPS route are established. Record Lambda deployment and simulator response in a subsequent ledger event.
