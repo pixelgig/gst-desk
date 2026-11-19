@@ -67,13 +67,62 @@ async function getSummary() {
   return data;
 }
 
+// All future known and free-form business requests pass through a single stable,
+// authorized, read-only backend. Future D1 metrics can be added in Cloudflare alone.
+async function getBusinessAnswer(intentName, question) {
+  if (!configured()) throw Error('not_configured');
+  const url = new URL(process.env.GST_DESK_VOICE_API_URL);
+  if (url.protocol !== 'https:' || url.username || url.password ||
+      url.search || url.hash || url.pathname !== '/api/voice/summary') {
+    throw Error('invalid_endpoint');
+  }
+  url.pathname = '/api/voice/query';
+  const accessId = process.env.CF_ACCESS_CLIENT_ID;
+  const accessSecret = process.env.CF_ACCESS_CLIENT_SECRET;
+  if (Boolean(accessId) !== Boolean(accessSecret)) throw Error('invalid_access_config');
+  const payload = JSON.stringify({intentName, question:question || null});
+  const headers = {
+    authorization:'Bearer ' + process.env.GST_DESK_VOICE_API_TOKEN,
+    accept:'application/json',
+    'content-type':'application/json',
+    'content-length':Buffer.byteLength(payload),
+  };
+  if (accessId) {
+    headers['CF-Access-Client-Id'] = accessId;
+    headers['CF-Access-Client-Secret'] = accessSecret;
+  }
+  const answer = await new Promise((resolve, reject) => {
+    const req = https.request(url, {method:'POST',headers,timeout:3500}, res => {
+      if (res.statusCode !== 200) { res.resume(); reject(Error('api_unavailable')); return; }
+      let body='';
+      res.setEncoding('utf8');
+      res.on('data', chunk => {
+        body += chunk;
+        if (body.length > 4096) req.destroy(Error('response_too_large'));
+      });
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch { reject(Error('invalid_api_response')); }
+      });
+      res.on('error', reject);
+    });
+    req.on('timeout', () => req.destroy(Error('api_timeout')));
+    req.on('error', reject);
+    req.end(payload);
+  });
+  if (answer.readOnly !== true || typeof answer.spokenText !== 'string' ||
+      !answer.spokenText || answer.spokenText.length > 500 ||
+      typeof answer.available !== 'boolean') throw Error('invalid_api_response');
+  return answer;
+}
+
 const isIntent = name => input => Alexa.getRequestType(input.requestEnvelope) === 'IntentRequest' &&
   Alexa.getIntentName(input.requestEnvelope) === name;
 
 const LaunchHandler = {
   canHandle: input => Alexa.getRequestType(input.requestEnvelope) === 'LaunchRequest',
   handle: input => say(input,
-    'नमस्ते, जीएसटी डेस्क तैयार है। आप डिलीवर, रास्ते में, ए डब्ल्यू बी नहीं मिले, और रिटर्न पार्सल की संख्या पूछ सकते हैं।',
+    'नमस्ते, जीएसटी डेस्क तैयार है। आप डिलीवरी, ऑर्डर, टैक्स, बिक्री, स्टॉक और बिजनेस से जुड़े सवाल पूछ सकते हैं। जो डेटा अभी नहीं जुड़ा है, उसे मैं उपलब्ध नहीं बताऊँगी।',
     'क्या आप ड्राफ्ट चालानों की संख्या जानना चाहेंगे?'),
 };
 
@@ -247,7 +296,7 @@ const StatusHandler = {
 const HelpHandler = {
   canHandle: isIntent('AMAZON.HelpIntent'),
   handle: input => say(input,
-    'आप पूछ सकते हैं कितने डिलीवर हुए, कितने रास्ते में हैं, कितने की ए डब्ल्यू बी नहीं मिली, और कितने रिटर्न हुए। लाइव मीशो ऑर्डर का डेटा अभी उपलब्ध नहीं है।',
+    'आप डिलीवरी, पार्सल, ऑर्डर, स्टॉक, बिक्री, जीएसटी रिटर्न, प्रॉफिट और पेआउट के सवाल पूछ सकते हैं। जो डेटा अभी नहीं है, उसके बारे में स्पष्ट बताऊँगी।',
     'क्या आप ड्राफ्ट चालानों की संख्या जानना चाहेंगे?'),
 };
 
@@ -260,8 +309,25 @@ const StopHandler = {
 const FallbackHandler = {
   canHandle: isIntent('AMAZON.FallbackIntent'),
   handle: input => say(input,
-    'आप मुझसे सेव किए गए डिलीवरी, ट्रांजिट, रिटर्न और ए डब्ल्यू बी वाले शिपमेंट की समरी पूछ सकते हैं।',
-    'ड्राफ्ट चालान कितने हैं?'),
+    'इस सवाल का डेटा अभी जीएसटी डेस्क में उपलब्ध नहीं है। आप कह सकते हैं, डिलीवरी समरी बताओ।'),
+};
+
+const GenericBusinessHandler = {
+  // All new explicit intents and one AMAZON.SearchQuery-powered open question
+  // route through GST Desk without needing per-topic Alexa Lambda code changes.
+  canHandle: input => Alexa.getRequestType(input.requestEnvelope) === 'IntentRequest',
+  async handle(input) {
+    const intentName = Alexa.getIntentName(input.requestEnvelope);
+    const question = intentName === 'BusinessQueryIntent'
+      ? Alexa.getSlotValue(input.requestEnvelope, 'question') || ''
+      : '';
+    try {
+      const answer = await getBusinessAnswer(intentName, question);
+      return say(input, answer.spokenText);
+    } catch {
+      return say(input, 'अभी जीएसटी डेस्क का सुरक्षित डेटा कनेक्शन उपलब्ध नहीं है।');
+    }
+  },
 };
 
 const UnhandledHandler = {
@@ -280,7 +346,7 @@ const internalHandler = Alexa.SkillBuilders.custom()
     LaunchHandler, DraftCountHandler, StatusHandler, TodayMeeshoOrdersHandler, PendingDeliveriesHandler,
     VerifiedDeliveredHandler, VerifiedTransitHandler, AwaitingAwbHandler, ReturnedOrdersHandler,
     DeliveryOverviewHandler, LastDeliveryDateHandler, UpdateDeliveryStatusHandler, HelpHandler,
-    StopHandler, FallbackHandler, UnhandledHandler)
+    StopHandler, FallbackHandler, GenericBusinessHandler, UnhandledHandler)
   .addErrorHandlers(ErrorHandler)
   .lambda();
 
