@@ -177,8 +177,8 @@ The table below is mutable latest-state guidance; details must also appear in th
 | Last completed task | ALEXA-005: legal pages HTTP 200 confirmed, Cloudflare deployment live and source merged to main via PR #5; support contact and export compliance pending |
 | Last verified prod browser | Not verified during this documentation-only task |
 | Open risks/blockers | Alexa-hosted skill ID/account secret configuration not yet verified; latest 62-intent model and generic Lambda not imported/built in Amazon; staging external HTTPS URL intentionally disabled; authenticated post-deploy POST /api/voice/query and physical Echo unverified; no live Meesho feed; shared-speaker privacy |
-| Next recommended action | Check Amazon Certification status/email for approval, rejection or requested fixes. Do not confuse submission with public Live. Resolve real public contact email placeholder in privacy/terms with owner approval. Independently configure private Alexa-to-Cloudflare voice API and real authorized Echo test. |
-| Latest ledger checkpoint | EVT-20261119-021 (Amazon Alexa Skill submitted; certification In Review, not Live) |
+| Next recommended action | Test hi-IN-only settings on both Echo and Alexa on This Phone; enter exact Devanagari 'जीएसटी डेस्क खोलो'. If unsupported, investigate invocation-name/locale development-skill routing without changing the In Review certification model. API credentials still pending independently. |
+| Latest ledger checkpoint | EVT-20261119-022 (physical Echo and Alexa app typed invocation routing fails, locale diagnostic pending) |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -547,3 +547,13 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 - **Security/operations:** Alexa-hosted configured() security guard previously said voice connection not configured. Private Alexa-to-Cloudflare connection remains unverified and may block functional certification. Original public privacy/terms files still contain [CONTACT EMAIL]; obtain approved public support address and update legal Worker snapshot.
 - **Verification:** Submitted and In Review screenshot confirmed; certification outcome and actual public release still pending.
 - **Next handoff:** Track Amazon review outcome by Certification page/email. Later resolve any feedback, configure least-privilege Alexa credentials and read-only voice route, update approved legal contact and verify. Never confuse certification submission with successful business-data connectivity.
+
+### EVT-20261119-022 — ALEXA-001 — Alexa app and physical Echo cannot route Hindi skill invocation
+- **Date:** 2026-11-19, Asia/Kolkata; exact time not independently captured.
+- **Agent/model:** OpenAI / ChatGPT; GPT-6; user-facing diagnostic only.
+- **Before:** GST Desk custom skill model built in Amazon developer simulator, Lambda deployed and guarded by missing private voice connection; submission status In Review. Public Alexa app lists the skill as enabled. Owner says Echo and Alexa app use same Amazon account.
+- **Observed:** Owner's Echo Dot was set to English/हिन्दी (India) bilingual with English first. Alexa voice history clearly transcribed 'open g. s. t. desk', 'g. s. t. desk खोलो', and 'open g. s. t. desk skill'; Alexa returned 'not quite sure how to help' or 'can't find that skill'. Owner also typed 'Open GST DESK' and 'GST Desk खोलो' in mobile app; the former was interpreted as TV/video device control and the latter was unrecognized. The exact full-Devanagari typed invocation with both phone and Echo set hi-IN has not yet been tested in these screenshots.
+- **Inference, not certainty:** Physical microphone transcription is adequate; an en-IN vs hi-IN locale mismatch or invocation-name/skill routing issue is more plausible than a code/runtime D1 error. GitHub model invocation name remains 'जीएसटी डेस्क', hi-IN only. No direct evidence that Alexa routed these failed requests to the skill endpoint.
+- **Proposed one-step test:** Set Echo language to Hindi India only, also set Alexa on This Phone to Hindi India where supported, and paste exact 'जीएसटी डेस्क खोलो' into Alexa app. If still unrecognized, inspect locale/routing/skill invocation independently. Do not upload code or withdraw public certification based on guesses.
+- **Change/deployment:** This is an append-only documentation checkpoint. No source, skill, Worker, D1 or Amazon submission changes performed by AI.
+- **Remaining risks:** Public certification remains In Review; separate private Cloudflare-to-Alexa connection still not configured; both public legal pages had a contact email placeholder awaiting owner-approved replacement.
