@@ -174,11 +174,11 @@ The table below is mutable latest-state guidance; details must also appear in th
 | Branch / expected base | `main` following merged PR #4; always re-fetch HEAD before future work |
 | Work-in-progress PRs/branches | PR #3 and PR #4 merged to main; recheck fresh branches/PRs before edits |
 | Uncommitted edits | Unknown outside current GitHub connector session |
-| Last completed task | ALEXA-005: isolated public Alexa privacy and terms pages deployed, HTTP 200 confirmed; source merge/ledger handoff pending |
+| Last completed task | ALEXA-005: legal pages HTTP 200 confirmed, Cloudflare deployment live and source merged to main via PR #5; support contact and export compliance pending |
 | Last verified prod browser | Not verified during this documentation-only task |
 | Open risks/blockers | Alexa-hosted skill ID/account secret configuration not yet verified; latest 62-intent model and generic Lambda not imported/built in Amazon; staging external HTTPS URL intentionally disabled; authenticated post-deploy POST /api/voice/query and physical Echo unverified; no live Meesho feed; shared-speaker privacy |
 | Next recommended action | Enter verified public privacy URL in Alexa Hindi store preview and save; owner reviews/export-compliance acknowledgement. Ask for an approved publicly listed support email to replace `[CONTACT EMAIL]` in both txt and Worker, then redeploy. Secure Alexa-to-D1 integration still pending. |
-| Latest ledger checkpoint | EVT-20261119-019 (ALEXA-005 public legal pages deployed, HTTP200, email placeholder pending) |
+| Latest ledger checkpoint | EVT-20261119-020 (ALEXA-005 legal pages merged to main; public URL verified, contact pending) |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -526,3 +526,13 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 - **Other remaining blocker:** Export compliance is a legal declaration that owner must read and accept in Alexa Distribution -> Privacy & Compliance. URLs alone will not mark it complete. Amazon Alexa-to-private Cloudflare voice connection also remains unconfigured and could block functional certification.
 - **Rollback:** Disable only `gst-desk-legal` worker's public subdomain or deploy its previous version; do not touch `gst-desk-api-staging` or `gst-desk-preview`.
 - **Next handoff:** Merge PR #5, record source commit in AGENTS. Owner pastes privacy URL (and Terms URL if field appears), saves store preview and re-runs Certification Validation; obtains approved public contact email for legal documents and redeploys; user separately completes export compliance. No need to re-upload Alexa model or Lambda.
+
+### EVT-20261119-020 — ALEXA-005 — Merge public Alexa legal-page source into main
+- **Date:** 2026-11-19 Asia/Kolkata; exact clock time not independently captured.
+- **Agent/model:** OpenAI / ChatGPT, GPT-6, via connected GitHub.
+- **Before:** Public Cloudflare Worker `gst-desk-legal` was already deployed and both URLs browser verified at HTTP 200, but source files and handoff notes were on `feature/alexa-public-legal-pages-20261119` under PR #5.
+- **After:** PR [#5](https://github.com/pixelgig/gst-desk/pull/5) merged successfully into `main`, merge commit [`44b993e97624ba430421acc51de833d5922b5568`](https://github.com/pixelgig/gst-desk/commit/44b993e97624ba430421acc51de833d5922b5568). The canonical source includes `cloudflare/workers/gst-desk-legal/worker.js`, `docs/integrations/alexa-legal-pages.md`, README links, brain.md notes, and all prior AGENTS events. Original `privacy.txt` and `terms.txt` preserved verbatim.
+- **Work and verification:** COMMITTED on main, separate Cloudflare DEPLOYED_VERIFIED_VERSION (see EVT-019), independent browser HTTP 200 verified for both Privacy and Terms without authentication. This GitHub merge did **not** deploy any additional Worker code.
+- **Safety:** Production `gst-desk-preview`, private staging API, D1, secrets and existing Alexa Lambda unaffected. Public legal worker remains binding-free.
+- **Open requirement:** Both legal texts have literal `[CONTACT EMAIL]`; request expressly approved public business support address before final Amazon certification, then update `.txt` and Worker snapshot/redeploy and verify. Export-compliance acknowledgement must be reviewed/accepted by the owner. Private Alexa-to-business-data connection remains a separate incomplete workstream.
+- **Next handoff:** Owner pastes verified public Privacy URL into Distribution -> Skill Preview -> Hindi (IN), Terms URL into Terms of Use, saves and reruns Certification -> Validation; owner reviews export-compliance statement. No repeated Alexa code/model uploads.
