@@ -152,7 +152,7 @@ This is the **editable summary** of current tasks. Append-only event history liv
 | **SETTLE-001** | P2 | Real marketplace fees/refunds/settlement and paid-versus-invoiced reconciliation | QUEUED | NOT_APPLICABLE | NOT_RUN | Depends on actual statements and costs |
 | **ORDER-001** | P2 | Determine legitimate Meesho order source; design notification intake | BLOCKED | NOT_APPLICABLE | NOT_RUN | No confirmed seller webhook/API yet |
 | **ALEXA-001** | P3 | Configure and test Hindi read-only skill with authorized owner Echo | QUEUED | NOT_APPLICABLE | NOT_RUN | Requires Alexa/Amazon configuration; no fake live metrics |
-| **ALEXA-002** | P3 | Match Alexa saved shipment breakdown to Valmo, add Hindi delivery/returned/AWB commands | SOURCE_DONE | PR_OPEN | NOT_RUN | ChatGPT / GPT-6; [draft PR #3](https://github.com/pixelgig/gst-desk/pull/3); CI and staging/Amazon deployment pending |
+| **ALEXA-002** | P3 | Match Alexa saved shipment breakdown to Valmo, add Hindi delivery/returned/AWB commands | SOURCE_DONE | PR_OPEN | SOURCE_TESTED | ChatGPT / GPT-6; [draft PR #3](https://github.com/pixelgig/gst-desk/pull/3); CI passed, staging/Amazon updates pending |
 
 **Task IDs are stable, not counters to overwrite.** New tasks use a concise category prefix (e.g. `UI-002`, `LIST-003`, `BUG-001`, `DEPLOY-001`). Do not recycle an ID after completion or cancellation. A major task can have child IDs (`LIST-001A`, `LIST-001B`) with a clear parent. Multiple agents must check latest file before reserving an ID.
 
@@ -175,7 +175,7 @@ The table below is mutable latest-state guidance; details must also appear in th
 | Last verified prod browser | Not verified during this documentation-only task |
 | Open risks/blockers | Alexa-hosted credentials not configured, staging module not redeployed from PR #3, Echo unverified, user voice can't safely disclose individual private order identifiers, Meesho live feed absent |
 | Next recommended action | Validate PR #3 CI; merge after review; deploy staging with bindings and Access preserved; sync Alexa handler/model and configure private token; test on real Echo |
-| Latest ledger checkpoint | EVT-20261119-003 (ALEXA-002), draft PR #3 |
+| Latest ledger checkpoint | EVT-20261119-004 (ALEXA-002 test checkpoint), draft PR #3 |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -329,3 +329,14 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 - **Rollback:** Revert PR changes for code-only rollback; for any later Cloudflare staging deployment use previously verified staging Worker version; no D1 rollback involved.
 - **Next handoff:** ALEXA-001 / ALEXA-002 — review CI, merge after validation, then stage updated voice code preserving active D1, secrets and Access; sync Amazon skill model and handler; verify no-token 401, owner 200, actual Hindi commands.
 
+### EVT-20261119-004 — ALEXA-002 — GitHub voice CI passed
+- **Date/time:** 2026-11-19 IST (date only; exact clock time not independently captured).
+- **AI identity:** OpenAI / ChatGPT; model: GPT-6; context: follow-up verification on [draft PR #3](https://github.com/pixelgig/gst-desk/pull/3).
+- **Work:** SOURCE_DONE; **Delivery:** PR_OPEN; **Verification:** SOURCE_TESTED (GitHub Actions test job passed; no Alexa-hosted, Cloudflare release, real Echo or authenticated live voice verification).
+- **Before:** EVT-20261119-003 recorded source changes and read-only D1 query, with automated tests pending.
+- **After:** GitHub Actions **GST Desk Hindi Alexa checks** reported completed/success; job `voice-readonly` completed/success. This verifies Node.js syntax and the repository's read-only contract tests as configured in [alexa-hindi.yml](./.github/workflows/alexa-hindi.yml). D1 read-only SQL result remains 9 carrier-delivered + 4 owner-confirmed = 13 delivered, 2 moving, 8 awaiting AWB, 1 returned.
+- **Evidence:** [Workflow run 44428646615](https://github.com/pixelgig/gst-desk/actions/runs/44428646615); draft PR #3. The successful workflow applies to source tests, not actual Amazon runtime or Cloudflare network testing.
+- **Deployment/data:** No staging or production code deployment performed by this task; no D1 writes; no credentials exported.
+- **Remaining work:** Review/merge tested PR, preserve existing Cloudflare bindings when updating the staged voice module, configure secure Alexa-hosted access (Node.js version and secrets mechanism must be verified), synchronize model and handler, and test the real device and service route. Do not interpret current source-only code as audible real D1 counts.
+- **Rollback:** Leave existing deployed staging and Amazon code unchanged until release testing; abandon or revert PR #3 if necessary.
+- **Next handoff:** ALEXA-001 secure hosted integration and staged voice module deployment after review.
