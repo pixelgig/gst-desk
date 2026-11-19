@@ -90,7 +90,7 @@ The Lambda handler includes `GenericBusinessHandler` for future topics and uses 
 
 **Future change principle:** When a new authorized metric becomes available, update the Cloudflare D1 read model and deterministic voice dispatcher. The existing Alexa code need not be edited for every metric if the intent was already registered or matched through the flexible query. For entirely new voice patterns, locales, Alexa API permissions, or endpoint changes, Amazon may still require a model rebuild and code deployment. Github source changes do not automatically deploy to Alexa.
 
-**Release status:** The earlier saved-shipment summary was deployed as Cloudflare staging v8. The new **ALEXA-003 voice question endpoint and expanded model** are not considered active until the new staging version and Amazon model/Lambda are independently deployed and verified. The production GST Desk Worker remains separate.
+**Release status:** The new protected question endpoint was deployed to **Cloudflare staging Worker v9** (`2e921df2-8dfd-4e91-b2d9-0e46e800b76c`, deployment `a9c33923-4528-4f59-9463-8b36b9ad6275`, 100% verified). D1 plus three encrypted secrets were preserved, and public Worker routes stayed disabled. The Amazon interaction model and Lambda are **NOT** synchronized yet; private authenticated POST verification and Echo testing remain pending. The production GST Desk Worker remains separate.
 
 ## Backend prerequisites — do NOT deploy the sanitized snapshot blindly
 
