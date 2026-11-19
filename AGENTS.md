@@ -152,7 +152,7 @@ This is the **editable summary** of current tasks. Append-only event history liv
 | **SETTLE-001** | P2 | Real marketplace fees/refunds/settlement and paid-versus-invoiced reconciliation | QUEUED | NOT_APPLICABLE | NOT_RUN | Depends on actual statements and costs |
 | **ORDER-001** | P2 | Determine legitimate Meesho order source; design notification intake | BLOCKED | NOT_APPLICABLE | NOT_RUN | No confirmed seller webhook/API yet |
 | **ALEXA-001** | P3 | Configure and test Hindi read-only skill with authorized owner Echo | QUEUED | NOT_APPLICABLE | NOT_RUN | Requires Alexa/Amazon configuration; no fake live metrics |
-| **ALEXA-002** | P3 | Match Alexa saved shipment breakdown to Valmo, add Hindi delivery/returned/AWB commands | SOURCE_DONE | PR_OPEN | SOURCE_TESTED | ChatGPT / GPT-6; [draft PR #3](https://github.com/pixelgig/gst-desk/pull/3); CI passed, staging/Amazon updates pending |
+| **ALEXA-002** | P3 | Match Alexa saved shipment breakdown to Valmo, add Hindi delivery/returned/AWB commands | SOURCE_DONE | DEPLOYED_VERIFIED_VERSION | SOURCE_TESTED | ChatGPT / GPT-6; staging Worker v8 live, [draft PR #3](https://github.com/pixelgig/gst-desk/pull/3) unmerged; Amazon sync pending |
 
 **Task IDs are stable, not counters to overwrite.** New tasks use a concise category prefix (e.g. `UI-002`, `LIST-003`, `BUG-001`, `DEPLOY-001`). Do not recycle an ID after completion or cancellation. A major task can have child IDs (`LIST-001A`, `LIST-001B`) with a clear parent. Multiple agents must check latest file before reserving an ID.
 
@@ -166,16 +166,16 @@ The table below is mutable latest-state guidance; details must also appear in th
 
 | Field | Current value |
 | --- | --- |
-| Active owner task | ALEXA-002: Voice shipment breakdown source complete; draft PR #3 awaiting CI/review |
+| Active owner task | ALEXA-002: Cloudflare staging v8 deployed, source PR #3 still draft; Alexa model/Lambda/credentials pending |
 | Current agent | OpenAI / ChatGPT, GPT-6, Alexa shipment voice work (source / PR only) |
 | Branch / expected base | `feature/alexa-shipment-breakdown-20261119` off `main`; re-fetch HEAD before further edits |
 | Work-in-progress PRs/branches | [Draft PR #3](https://github.com/pixelgig/gst-desk/pull/3) Alexa shipment breakdown |
 | Uncommitted edits | Unknown outside current GitHub connector session |
 | Last completed task | DOC-001; ALEXA-002 source commit(s) in PR #3, deployment/acceptance pending |
 | Last verified prod browser | Not verified during this documentation-only task |
-| Open risks/blockers | Alexa-hosted credentials not configured, staging module not redeployed from PR #3, Echo unverified, user voice can't safely disclose individual private order identifiers, Meesho live feed absent |
-| Next recommended action | Validate PR #3 CI; merge after review; deploy staging with bindings and Access preserved; sync Alexa handler/model and configure private token; test on real Echo |
-| Latest ledger checkpoint | EVT-20261119-004 (ALEXA-002 test checkpoint), draft PR #3 |
+| Open risks/blockers | Alexa-hosted credentials and new interaction model not configured, staging HTTPS URL disabled by design, owner authenticated post-deploy test and Echo unverified, shared speaker cannot safely disclose individual order identities without stronger authorization, live Meesho feed absent |
+| Next recommended action | Test deployed voice API 401/405 and owner 200; review/merge PR #3; sync Alexa-hosted Lambda and interaction model; configure private Alexa credentials and a tightly scoped HTTPS endpoint; test Echo |
+| Latest ledger checkpoint | EVT-20261119-005 (ALEXA-002 staging v8), draft PR #3 |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -340,3 +340,17 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 - **Remaining work:** Review/merge tested PR, preserve existing Cloudflare bindings when updating the staged voice module, configure secure Alexa-hosted access (Node.js version and secrets mechanism must be verified), synchronize model and handler, and test the real device and service route. Do not interpret current source-only code as audible real D1 counts.
 - **Rollback:** Leave existing deployed staging and Amazon code unchanged until release testing; abandon or revert PR #3 if necessary.
 - **Next handoff:** ALEXA-001 secure hosted integration and staged voice module deployment after review.
+
+### EVT-20261119-005 — ALEXA-002 — Deploy voice shipment breakdown to Cloudflare staging
+- **Date/time:** 2026-11-19 IST (date only; exact clock time not independently captured).
+- **AI identity:** OpenAI / ChatGPT; model: GPT-6; context: authenticated Cloudflare API connector and GitHub source-branch deployment.
+- **Trigger:** Owner confirmed Alexa's protected staging API could retrieve existing D1 records and requested continuing with saved shipment statuses. GitHub [draft PR #3](https://github.com/pixelgig/gst-desk/pull/3) had source checks passing.
+- **Work:** SOURCE_DONE; **Delivery:** DEPLOYED_VERIFIED_VERSION (**staging only**); **Verification:** SOURCE_TESTED (GitHub CI success; deployed-version/bindings inspection and D1 SQL query; authenticated voice output not yet retested after this deployment).
+- **Before:** Staging Worker served previous voice module with carrier-only delivered count. Existing D1 had 24 shipment candidates: 9 carrier-delivered + 4 owner-confirmed Delhivery, 2 transit, 8 awaiting AWB, 1 returned. Version 7 (`dd33c7b9-f07a-4de3-bd33-f086ed1402e8`) was serving 100% staging traffic before update.
+- **After:** Uploaded new staging Worker version **8**, ID `4a152e7a-c1ad-4327-ada4-c0493d590d55`, retaining original staging `worker.js` entrypoint and replacing only its imported `voice-summary.js` module content with tested GitHub PR source. Uploaded version preserved all existing D1 and secret bindings. Deployed at **100% staging traffic**, deployment ID `16ecfaa1-d741-4024-a2eb-8f59c1efaaee`. Follow-up Cloudflare API inspection verified 100% traffic and binding names/types: `DB` (D1), `VOICE_API_TOKEN`, `VOICE_BUSINESS_ID`, `VOICE_OWNER_EMAIL` (all secret_text). `workers.dev` and preview URLs remained disabled.
+- **Files and sources:** Source under [draft PR #3](https://github.com/pixelgig/gst-desk/pull/3); staging `worker.js` preserved as existing deployed code, `voice-summary.js` source replaced, existing Access JWT auth routes unchanged.
+- **Validation evidence:** Read-only D1 query using exact revised SQL returned 24 total, 9 verified delivered, 4 owner-confirmed delivered, 13 combined delivered, 2 in transit/out-for-delivery, 8 missing AWB, 1 returned. [GitHub Alexa workflow run 44429011171](https://github.com/pixelgig/gst-desk/actions/runs/44429011171) passed. **Not yet validated:** post-deploy authenticated /api/voice/summary response over an external route; Alexa-hosted credentials, Echo voice commands or full browser runtime.
+- **Security/cost/data:** No D1 schema or data changes, no main `gst-desk-preview` production code deployment, no billing changes, no public URL enabled, no token values printed or stored in GitHub. Only aggregate read-only data is exposed after bearer-secret owner validation.
+- **Known risks:** Actual Alexa-hosted skill still has older interaction model/handler unless separately synchronized; existing code expects configured private environment settings not yet established in Amazon-hosted skill. Shared Echo users are not speaker-authenticated by Amazon account ID alone. PR #3 is still draft/unmerged in `main` despite staging release.
+- **Rollback:** Re-deploy previous staging-only version `dd33c7b9-f07a-4de3-bd33-f086ed1402e8` if necessary, but check secret rotations/version compatibility before rolling back. D1 records unaffected.
+- **Next handoff:** ALEXA-001: owner-controlled authenticated 200/no-token 401 tests against currently deployed version, secure HTTPS route with least-privilege Access, synchronize latest `hi-IN.json` and Alexa Lambda source, choose supported secure config, test on physical Echo, then document results.
