@@ -44,7 +44,7 @@ export async function handleVoiceSummary(request, env) {
       'SELECT COUNT(*) AS total, MAX(updated_at) AS last_updated FROM gstdesk_invoice_drafts WHERE business_id=? AND deleted_at IS NULL'
     ).bind(env.VOICE_BUSINESS_ID).first();
     const shipments = await env.DB.prepare(
-      "SELECT COUNT(*) AS known_orders,SUM(CASE WHEN status='delivered' AND delivered_date_ist IS NOT NULL THEN 1 ELSE 0 END) AS verified_delivered,SUM(CASE WHEN status IN ('in_transit','out_for_delivery') THEN 1 ELSE 0 END) AS verified_in_transit,SUM(CASE WHEN awb IS NULL THEN 1 ELSE 0 END) AS awaiting_awb FROM gstdesk_shipments WHERE business_id=?"
+      "SELECT COUNT(*) AS known_orders,SUM(CASE WHEN status='delivered' AND delivered_date_ist IS NOT NULL THEN 1 ELSE 0 END) AS verified_delivered,SUM(CASE WHEN owner_confirmed_delivered=1 AND carrier_name='delhivery' AND status!='delivered' THEN 1 ELSE 0 END) AS owner_confirmed_delivered,SUM(CASE WHEN status='delivered' OR (owner_confirmed_delivered=1 AND carrier_name='delhivery') THEN 1 ELSE 0 END) AS total_delivered,SUM(CASE WHEN status IN ('in_transit','out_for_delivery') THEN 1 ELSE 0 END) AS verified_in_transit,SUM(CASE WHEN awb IS NULL THEN 1 ELSE 0 END) AS awaiting_awb,SUM(CASE WHEN status='returned' THEN 1 ELSE 0 END) AS returned FROM gstdesk_shipments WHERE business_id=?"
     ).bind(env.VOICE_BUSINESS_ID).first();
     const lastDelivered = await env.DB.prepare(
       "SELECT delivered_date_ist FROM gstdesk_shipments WHERE business_id=? AND status='delivered' AND delivered_date_ist IS NOT NULL ORDER BY delivered_at DESC LIMIT 1"
@@ -63,12 +63,16 @@ export async function handleVoiceSummary(request, env) {
         ordersToday: false,
         pendingDeliveries: false,
         verifiedDeliveries: true,
+        shipmentBreakdown: true,
       },
       delivery: {
         knownInvoicedOrders: Number(shipments?.known_orders || 0),
         verifiedDelivered: Number(shipments?.verified_delivered || 0),
+        ownerConfirmedDelivered: Number(shipments?.owner_confirmed_delivered || 0),
+        totalDelivered: Number(shipments?.total_delivered || 0),
         verifiedInTransit: Number(shipments?.verified_in_transit || 0),
         awaitingAwb: Number(shipments?.awaiting_awb || 0),
+        returned: Number(shipments?.returned || 0),
         lastDeliveredDateIST: lastDelivered?.delivered_date_ist || null,
         source: 'verified_shipment_records_not_live_order_feed',
       },
