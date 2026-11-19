@@ -86,7 +86,7 @@ These are **aggregate-only household-safe answers**. Listing exact order referen
 
 The broader interaction model now additionally recognizes **CapabilitiesIntent**, **AccessScopeIntent**, **DataAvailabilityIntent**, **QuestionExamplesIntent**, **DataFreshnessIntent** and **PrivacySafetyIntent**, including variants of "तुम क्या कर सकती हो?", "तुम्हारे पास क्या एक्सेस है?" and "तुम्हारे पास कौन सा डेटा है?". Backend answers are based on explicitly available D1 metrics/flags and clear read-only security limits. The previous interaction model's defective single-character samples were also repaired; use the updated `main/integrations/alexa/interaction-models/hi-IN.json` only after model build validation. See [the question catalogue](./alexa-question-catalog.md).
 
-**Release boundary:** These newest six intents and backend answers are source changes until verified on Cloudflare staging and the existing Amazon skill; source tests are not live Echo proof.
+**Release boundary:** These six new backend answers were deployed to **Cloudflare staging Worker v10** (`e8f9b7a8-b23e-498f-9038-0734d16e65f4`) at 100% traffic, preserving all three secrets and D1 binding; public Worker URLs remained disabled. New Amazon JSON/model and Lambda deployment have **not** been validated and the actual Echo has not been tested.
 
 ## ALEXA-003: broad Hindi interaction model and backend-only upgrades
 
