@@ -1,6 +1,6 @@
 # Hindi Alexa voice access — GST Desk (existing project)
 
-**Status:** Source-level integration prepared; **not deployed or linked to an Echo yet**.
+**Status (19 November 2026):** A protected read-only voice route was confirmed deployed on `gst-desk-api-staging` and returned an authenticated D1 JSON summary during owner testing. The Alexa-hosted handler has not yet been configured to call it successfully; the physical Echo remains unverified. Shipment-breakdown enhancements are source-only until separately deployed.
 The live app remains https://gst.nividhi.in. This is a feature of the existing
 `pixelgig/gst-desk` repository, not a new GST application, tenant database, or server.
 
@@ -8,10 +8,11 @@ The live app remains https://gst.nividhi.in. This is a feature of the existing
 
 - Hindi India (`hi-IN`) skill model with invocation name `जीएसटी डेस्क`
 - Read-only **draft invoice count** for one explicitly authorized business
+- Saved shipment status summary: carrier-confirmed deliveries, separately owner-confirmed Delhivery deliveries, in transit/out for delivery, missing AWB, returned
 - Voice connection status, help, and stop
 - Fail-closed behavior if credentials, database, membership, or API are unavailable
 
-**Not yet connected:** sales, orders, settlements, profit, tax liability, filing.
+**Not yet connected:** live Meesho orders, settlements, profit, tax liability, filing.
 The current schema snapshot does not establish a business-scoped sales read model;
 Alexa **must not** guess these metrics. There is no voice mutation endpoint.
 
@@ -63,6 +64,23 @@ API secrets in repository or screenshots.
 - `integrations/alexa/lambda/index.js`: Amazon ASK Node.js handler
 - `integrations/alexa/interaction-models/hi-IN.json`: voice commands
 - `integrations/alexa/test/voice-summary.test.mjs`: security and contract checks
+
+## Saved shipment metrics for Alexa (19 November 2026 source update)
+
+The owner requested that Alexa focus on **existing shipping data**, not claim current Meesho order sync. The D1 baseline at review was: 24 shipment candidates, 9 carrier-confirmed Valmo deliveries, 4 owner-confirmed Delhivery deliveries, 2 tracked in transit/out-for-delivery, 8 awaiting AWB, and 1 returned. These numbers are a dated diagnostic, **not constants** in the skill.
+
+The enhanced read-only voice response now distinguishes:
+- `delivery.verifiedDelivered`: real carrier-confirmed delivery, includes actual carrier delivery date evidence.
+- `delivery.ownerConfirmedDelivered`: distinct owner confirmation for Delhivery, **no fabricated delivered date**.
+- `delivery.totalDelivered`: same combined delivered category shown in GST Desk's Valmo dashboard; do not double-count.
+- `delivery.verifiedInTransit`: recorded in-transit or out-for-delivery.
+- `delivery.awaitingAwb`: AWB missing, **delivery status unknown**, not automatically late or in transit.
+- `delivery.returned`: confirmed returned status.
+- `availableMetrics.shipmentBreakdown`: tells Alexa these saved-record metrics are available; `orders.today` remains null because live Meesho sync is unavailable.
+
+Added Hindi intents: `DeliveryOverviewIntent`, `AwaitingAwbIntent`, `ReturnedOrdersIntent`. Existing `PendingDeliveriesIntent` describes moving vs AWB-missing shipments explicitly rather than pretending to know the real-time pending Meesho order total. The handler uses Node.js 16-compatible HTTPS requests because Alexa-hosted Node runtimes can lack built-in `fetch`.
+
+These are **aggregate-only household-safe answers**. Listing exact order references, customer names, shipping addresses or financial details over a shared household Echo needs additional voice authorization/privacy design; no such details are disclosed by this change. The Alexa developer console must be synchronized with updated `index.js` and `hi-IN.json` and redeployed separately. The staging Worker must also receive the tested new `voice-summary.mjs` while preserving the existing owner's Access JWT checks and D1/secret bindings. GitHub commits alone update neither platform.
 
 ## Backend prerequisites — do NOT deploy the sanitized snapshot blindly
 
@@ -133,5 +151,4 @@ The CI workflow checks the read-only endpoint, authorization failures, schema
 contract, syntax, and Hindi interaction model. These tests do **not** constitute
 an Alexa-device test, Cloudflare deployment test, or GST calculation audit.
 
-**Production state:** No secret configured here, no Alexa skill registered here,
-no live Worker deployment, no D1 records changed, no GST return submitted.
+**Deployment boundary:** Protected staging voice endpoint and three encrypted staging secrets have been observed in Cloudflare; the Alexa-hosted skill has not yet completed authenticated integration. Never confuse cloud staging with the main production Worker. No D1 records were changed by the voice feature or submitted to GSTN.
