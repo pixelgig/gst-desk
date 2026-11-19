@@ -22,7 +22,7 @@ function makeEnv({ member = true, count = 3, db = true } = {}) {
               if (isMembershipQuery) return member ? {allowed: 1} : null;
               if (sql.includes('gstdesk_shipments') && sql.includes('lastDelivered')) return null;
               if (sql.includes('gstdesk_shipments') && sql.includes('ORDER BY delivered_at')) return null;
-              if (sql.includes('gstdesk_shipments')) return {known_orders:24,verified_delivered:0,verified_in_transit:0,awaiting_awb:23};
+              if (sql.includes('gstdesk_shipments')) return {known_orders:24,verified_delivered:9,owner_confirmed_delivered:4,total_delivered:13,verified_in_transit:2,awaiting_awb:8,returned:1};
               return {total: count, last_updated: '2026-11-18T04:00:00Z'};
             },
           };
@@ -80,16 +80,44 @@ test('only reports authorized read-only draft counts, never guesses sales/tax', 
   assert.deepEqual(data.availableMetrics, {
     drafts: true, sales: false, profit: false, gstPayable: false,
     ordersToday: false, pendingDeliveries: false, verifiedDeliveries: true,
+    shipmentBreakdown: true,
   });
   assert.equal(data.delivery.knownInvoicedOrders,24);
-  assert.equal(data.delivery.verifiedDelivered,0);
-  assert.equal(data.delivery.verifiedInTransit,0);
-  assert.equal(data.delivery.awaitingAwb,23);
+  assert.equal(data.delivery.verifiedDelivered,9);
+  assert.equal(data.delivery.ownerConfirmedDelivered,4);
+  assert.equal(data.delivery.totalDelivered,13);
+  assert.equal(data.delivery.verifiedInTransit,2);
+  assert.equal(data.delivery.awaitingAwb,8);
+  assert.equal(data.delivery.returned,1);
   assert.equal(data.delivery.lastDeliveredDateIST,null);
   assert.equal(data.orders.today, null);
   assert.equal(data.orders.pendingDeliveries, null);
   assert.equal(data.orders.timeZone, 'Asia/Kolkata');
   assert.ok(!JSON.stringify(data).includes('owner@example.test'));
+});
+
+test('shipment counting distinguishes carrier and owner confirmation and return statuses', async () => {
+  const data = await (await handleVoiceSummary(request(), makeEnv())).json();
+  assert.equal(data.delivery.verifiedDelivered + data.delivery.ownerConfirmedDelivered,
+    data.delivery.totalDelivered);
+  assert.equal(data.delivery.knownInvoicedOrders,
+    data.delivery.totalDelivered + data.delivery.verifiedInTransit +
+    data.delivery.awaitingAwb + data.delivery.returned);
+  assert.equal(data.availableMetrics.ordersToday, false);
+  assert.equal(data.orders.today, null);
+  assert.equal(data.orders.pendingDeliveries, null);
+});
+
+test('Alexa voice source handles saved shipment breakdown without exposing real order identities', () => {
+  const source = readFileSync(
+    new URL('../lambda/index.js', import.meta.url), 'utf8');
+  for (const name of ['DeliveryOverviewHandler','AwaitingAwbHandler',
+    'ReturnedOrdersHandler','PendingDeliveriesHandler']) {
+    assert.ok(source.includes(name));
+  }
+  assert.ok(source.includes('totalDelivered'));
+  assert.ok(source.includes('ownerConfirmedDelivered'));
+  assert.ok(!source.includes('customerAddress'));
 });
 
 test('Hindi interaction model has unique utterances and expected intent names', () => {
@@ -107,6 +135,9 @@ test('Hindi interaction model has unique utterances and expected intent names', 
   assert.ok(intents.some(i => i.name === 'VerifiedTransitIntent'));
   assert.ok(intents.some(i => i.name === 'LastDeliveryDateIntent'));
   assert.ok(intents.some(i => i.name === 'UpdateDeliveryStatusIntent'));
+  assert.ok(intents.some(i => i.name === 'AwaitingAwbIntent'));
+  assert.ok(intents.some(i => i.name === 'ReturnedOrdersIntent'));
+  assert.ok(intents.some(i => i.name === 'DeliveryOverviewIntent'));
   assert.ok(all.some(s => s.includes('मीशो')));
   assert.ok(all.some(s => s.includes('डिलीवर')));
   assert.ok(model.interactionModel.languageModel.invocationName.includes('डेस्क'));
