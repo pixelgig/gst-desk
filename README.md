@@ -40,4 +40,13 @@ Do not assume the current source tree can be deployed unchanged until build conf
 
 ## Hindi Alexa integration (in development)
 
-A read-only Hindi voice interface for the **existing GST Desk**, using its D1-backed staging API and an Amazon Alexa Skill. See [setup, privacy limits, and tests](docs/integrations/alexa-hindi.md). The voice feature is not deployed or attached to an Echo yet. Never deploy the sanitized staging snapshot without validating runtime bindings and Access policies.
+A read-only Hindi voice interface for the **existing GST Desk**, using its D1-backed staging API and an Amazon Alexa Skill. See [setup, privacy limits, and tests](docs/integrations/alexa-hindi.md). Alexa's interaction model and handler have been installed in the developer skill, but the private voice API credentials/network integration and real Echo data test remain pending. Cloudflare staging includes a protected read-only voice API; do not claim actual live Meesho data. Never deploy the sanitized staging snapshot without validating runtime bindings and Access policies.
+
+## Public Alexa legal pages
+
+Source texts: [privacy.txt](./privacy.txt) and [terms.txt](./terms.txt). They are published as standalone HTTPS pages by a **separate unprivileged Cloudflare Worker**, without D1, credentials or GST Desk production route changes:
+
+- [Alexa Privacy Policy](https://gst-desk-legal.gstdesk-nividhi.workers.dev/privacy)
+- [Alexa Terms of Use](https://gst-desk-legal.gstdesk-nividhi.workers.dev/terms)
+
+See [hosting and synchronization notes](./docs/integrations/alexa-legal-pages.md). **Both original legal texts still contain `[CONTACT EMAIL]`; supply an expressly approved public business contact before final certification, then republish both pages.** Updating GitHub source alone does not auto-update the Worker.
