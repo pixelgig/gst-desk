@@ -2,6 +2,7 @@
 // GST Desk integration: Alexa voice is only a read-only client of the existing API.
 // Amazon must deliver events via a skill-specific Alexa-hosted/Lambda endpoint.
 const Alexa = require('ask-sdk-core');
+const https = require('node:https');
 
 const say = (handlerInput, message, reprompt) => {
   const builder = handlerInput.responseBuilder.speak(message);
@@ -35,20 +36,84 @@ async function getSummary() {
     headers['CF-Access-Client-Id'] = clientId;
     headers['CF-Access-Client-Secret'] = clientSecret;
   }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 3500);
-  try {
-    const response = await fetch(url, {method: 'GET', headers, signal: controller.signal});
-    if (!response.ok) throw Error('api_unavailable');
-    const data = await response.json();
-    if (data.readOnly !== true || !data.availableMetrics || !data.drafts ||
-        !Number.isSafeInteger(data.drafts.count) || data.drafts.count < 0) {
-      throw Error('invalid_api_response');
-    }
-    return data;
-  } finally {
-    clearTimeout(timer);
+  // Alexa-hosted skills may use Node.js 16, which has no built-in fetch.
+  // Reject redirects and unusually large responses; never log bearer credentials.
+  const data = await new Promise((resolve, reject) => {
+    const request = https.get(url, {headers, timeout: 3500}, response => {
+      if (response.statusCode !== 200) {
+        response.resume();
+        reject(Error('api_unavailable'));
+        return;
+      }
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', chunk => {
+        body += chunk;
+        if (body.length > 32768) request.destroy(Error('response_too_large'));
+      });
+      response.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch { reject(Error('invalid_json')); }
+      });
+      response.on('error', reject);
+    });
+    request.on('timeout', () => request.destroy(Error('api_timeout')));
+    request.on('error', reject);
+  });
+  if (data.readOnly !== true || !data.availableMetrics || !data.drafts ||
+      !Number.isSafeInteger(data.drafts.count) || data.drafts.count < 0) {
+    throw Error('invalid_api_response');
   }
+  return data;
+}
+
+// All future known and free-form business requests pass through a single stable,
+// authorized, read-only backend. Future D1 metrics can be added in Cloudflare alone.
+async function getBusinessAnswer(intentName, question) {
+  if (!configured()) throw Error('not_configured');
+  const url = new URL(process.env.GST_DESK_VOICE_API_URL);
+  if (url.protocol !== 'https:' || url.username || url.password ||
+      url.search || url.hash || url.pathname !== '/api/voice/summary') {
+    throw Error('invalid_endpoint');
+  }
+  url.pathname = '/api/voice/query';
+  const accessId = process.env.CF_ACCESS_CLIENT_ID;
+  const accessSecret = process.env.CF_ACCESS_CLIENT_SECRET;
+  if (Boolean(accessId) !== Boolean(accessSecret)) throw Error('invalid_access_config');
+  const payload = JSON.stringify({intentName, question:question || null});
+  const headers = {
+    authorization:'Bearer ' + process.env.GST_DESK_VOICE_API_TOKEN,
+    accept:'application/json',
+    'content-type':'application/json',
+    'content-length':Buffer.byteLength(payload),
+  };
+  if (accessId) {
+    headers['CF-Access-Client-Id'] = accessId;
+    headers['CF-Access-Client-Secret'] = accessSecret;
+  }
+  const answer = await new Promise((resolve, reject) => {
+    const req = https.request(url, {method:'POST',headers,timeout:3500}, res => {
+      if (res.statusCode !== 200) { res.resume(); reject(Error('api_unavailable')); return; }
+      let body='';
+      res.setEncoding('utf8');
+      res.on('data', chunk => {
+        body += chunk;
+        if (body.length > 4096) req.destroy(Error('response_too_large'));
+      });
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch { reject(Error('invalid_api_response')); }
+      });
+      res.on('error', reject);
+    });
+    req.on('timeout', () => req.destroy(Error('api_timeout')));
+    req.on('error', reject);
+    req.end(payload);
+  });
+  if (answer.readOnly !== true || typeof answer.spokenText !== 'string' ||
+      !answer.spokenText || answer.spokenText.length > 500 ||
+      typeof answer.available !== 'boolean') throw Error('invalid_api_response');
+  return answer;
 }
 
 const isIntent = name => input => Alexa.getRequestType(input.requestEnvelope) === 'IntentRequest' &&
@@ -57,7 +122,7 @@ const isIntent = name => input => Alexa.getRequestType(input.requestEnvelope) ==
 const LaunchHandler = {
   canHandle: input => Alexa.getRequestType(input.requestEnvelope) === 'LaunchRequest',
   handle: input => say(input,
-    'नमस्ते, जीएसटी डेस्क तैयार है। आप पूछ सकते हैं, कितने ड्राफ्ट चालान हैं, या सिस्टम की स्थिति क्या है?',
+    'नमस्ते, जीएसटी डेस्क तैयार है। आप डिलीवरी, ऑर्डर, टैक्स, बिक्री, स्टॉक और बिजनेस से जुड़े सवाल पूछ सकते हैं। जो डेटा अभी नहीं जुड़ा है, उसे मैं उपलब्ध नहीं बताऊँगी।',
     'क्या आप ड्राफ्ट चालानों की संख्या जानना चाहेंगे?'),
 };
 
@@ -94,13 +159,16 @@ const PendingDeliveriesHandler = {
   canHandle: isIntent('PendingDeliveriesIntent'),
   async handle(input) {
     try {
-      const data = await getSummary();
-      if (data.availableMetrics?.pendingDeliveries === true &&
-          Number.isSafeInteger(data.orders?.pendingDeliveries) && data.orders.pendingDeliveries >= 0) {
-        return say(input, 'मीशो के ' + data.orders.pendingDeliveries + ' ऑर्डर अभी डिलीवर होने बाकी हैं।');
+      const d = await getSummary();
+      if (d.availableMetrics?.shipmentBreakdown === true &&
+          Number.isSafeInteger(d.delivery?.verifiedInTransit) &&
+          Number.isSafeInteger(d.delivery?.awaitingAwb)) {
+        return say(input, 'जीएसटी डेस्क के सेव किए गए रिकॉर्ड में ' +
+          d.delivery.verifiedInTransit + ' पार्सल रास्ते में हैं और ' +
+          d.delivery.awaitingAwb + ' की ए डब्ल्यू बी दर्ज नहीं है। यह लाइव मीशो ऑर्डर की गिनती नहीं है।');
       }
     } catch {}
-    return say(input, 'डिलीवरी की ताज़ा स्थिति अभी जीएसटी डेस्क से सिंक नहीं हुई है। इसलिए पेंडिंग ऑर्डर की संख्या नहीं बता सकती।');
+    return say(input, 'अभी सेव किए गए शिपमेंट की जानकारी उपलब्ध नहीं है। लाइव मीशो ऑर्डर सिंक भी कनेक्ट नहीं है।');
   },
 };
 
@@ -109,15 +177,20 @@ const VerifiedDeliveredHandler = {
   async handle(input) {
     try {
       const d = await getSummary();
-      if (d.availableMetrics?.verifiedDeliveries === true &&
-          Number.isSafeInteger(d.delivery?.verifiedDelivered)) {
-        return say(input, 'जिन ऑर्डर का रिकॉर्ड जीएसटी डेस्क में है, उनमें ' +
-          d.delivery.verifiedDelivered + ' डिलीवरी की पुष्टि हो चुकी है। बाकी ऑर्डर की स्थिति अभी सत्यापित नहीं है।');
+      if (d.availableMetrics?.shipmentBreakdown === true &&
+          Number.isSafeInteger(d.delivery?.totalDelivered) &&
+          Number.isSafeInteger(d.delivery?.verifiedDelivered) &&
+          Number.isSafeInteger(d.delivery?.ownerConfirmedDelivered)) {
+        return say(input, 'जीएसटी डेस्क के रिकॉर्ड में कुल ' +
+          d.delivery.totalDelivered + ' पार्सल डिलीवर दर्ज हैं। इनमें ' +
+          d.delivery.verifiedDelivered + ' कैरियर द्वारा और ' +
+          d.delivery.ownerConfirmedDelivered + ' आपके द्वारा कन्फर्म किए गए हैं।');
       }
     } catch {}
-    return say(input, 'डिलीवरी की पुष्टि वाला डेटाबेस अभी एलेक्सा से कनेक्ट नहीं है।');
+    return say(input, 'डिलीवरी की पुष्टि वाला रिकॉर्ड अभी उपलब्ध नहीं है।');
   },
 };
+
 const VerifiedTransitHandler = {
   canHandle: isIntent('VerifiedTransitIntent'),
   async handle(input) {
@@ -132,6 +205,56 @@ const VerifiedTransitHandler = {
     return say(input, 'अभी ट्रांजिट का सत्यापित रिकॉर्ड उपलब्ध नहीं है।');
   },
 };
+const AwaitingAwbHandler = {
+  canHandle: isIntent('AwaitingAwbIntent'),
+  async handle(input) {
+    try {
+      const d = await getSummary();
+      if (d.availableMetrics?.shipmentBreakdown === true &&
+          Number.isSafeInteger(d.delivery?.awaitingAwb)) {
+        return say(input, 'जीएसटी डेस्क के ' + d.delivery.awaitingAwb +
+          ' शिपमेंट में ए डब्ल्यू बी दर्ज नहीं है। उनकी डिलीवरी स्थिति की पुष्टि नहीं हुई है।');
+      }
+    } catch {}
+    return say(input, 'बिना ए डब्ल्यू बी वाले शिपमेंट की संख्या अभी उपलब्ध नहीं है।');
+  },
+};
+
+const ReturnedOrdersHandler = {
+  canHandle: isIntent('ReturnedOrdersIntent'),
+  async handle(input) {
+    try {
+      const d = await getSummary();
+      if (d.availableMetrics?.shipmentBreakdown === true &&
+          Number.isSafeInteger(d.delivery?.returned)) {
+        return say(input, 'जीएसटी डेस्क में ' + d.delivery.returned +
+          ' शिपमेंट रिटर्न दर्ज है।');
+      }
+    } catch {}
+    return say(input, 'रिटर्न हुए शिपमेंट का रिकॉर्ड अभी उपलब्ध नहीं है।');
+  },
+};
+
+const DeliveryOverviewHandler = {
+  canHandle: isIntent('DeliveryOverviewIntent'),
+  async handle(input) {
+    try {
+      const d = await getSummary();
+      const v = d.delivery || {};
+      if (d.availableMetrics?.shipmentBreakdown === true &&
+          ['totalDelivered','verifiedInTransit','awaitingAwb','returned']
+            .every(k => Number.isSafeInteger(v[k]) && v[k] >= 0)) {
+        return say(input, 'सेव किए गए शिपमेंट रिकॉर्ड के अनुसार, ' +
+          v.totalDelivered + ' डिलीवर हैं, ' +
+          v.verifiedInTransit + ' रास्ते में हैं, ' +
+          v.awaitingAwb + ' की ए डब्ल्यू बी उपलब्ध नहीं है, और ' +
+          v.returned + ' रिटर्न है। यह लाइव मीशो डेटा नहीं है।');
+      }
+    } catch {}
+    return say(input, 'अभी पूरी डिलीवरी समरी उपलब्ध नहीं है।');
+  },
+};
+
 const LastDeliveryDateHandler = {
   canHandle: isIntent('LastDeliveryDateIntent'),
   async handle(input) {
@@ -163,7 +286,7 @@ const StatusHandler = {
   async handle(input) {
     try {
       await getSummary();
-      return say(input, 'जीएसटी डेस्क का वॉइस कनेक्शन काम कर रहा है। ड्राफ्ट चालानों की जानकारी उपलब्ध है।');
+      return say(input, 'जीएसटी डेस्क का वॉइस कनेक्शन काम कर रहा है। सेव किए गए डिलीवरी रिकॉर्ड उपलब्ध हैं।');
     } catch {
       return say(input, 'जीएसटी डेस्क का डेटा कनेक्शन अभी उपलब्ध नहीं है।');
     }
@@ -173,7 +296,7 @@ const StatusHandler = {
 const HelpHandler = {
   canHandle: isIntent('AMAZON.HelpIntent'),
   handle: input => say(input,
-    'अभी आप ड्राफ्ट चालान, आज के मीशो ऑर्डर, और पेंडिंग डिलीवरी के बारे में पूछ सकते हैं। जिन रिकॉर्ड का डेटा सिंक नहीं हुआ है, उनकी संख्या अभी उपलब्ध नहीं होगी।',
+    'आप डिलीवरी, पार्सल, ऑर्डर, स्टॉक, बिक्री, जीएसटी रिटर्न, प्रॉफिट और पेआउट के सवाल पूछ सकते हैं। जो डेटा अभी नहीं है, उसके बारे में स्पष्ट बताऊँगी।',
     'क्या आप ड्राफ्ट चालानों की संख्या जानना चाहेंगे?'),
 };
 
@@ -186,8 +309,25 @@ const StopHandler = {
 const FallbackHandler = {
   canHandle: isIntent('AMAZON.FallbackIntent'),
   handle: input => say(input,
-    'आप मुझसे आज के मीशो ऑर्डर, पेंडिंग डिलीवरी और ड्राफ्ट चालानों के बारे में पूछ सकते हैं।',
-    'ड्राफ्ट चालान कितने हैं?'),
+    'इस सवाल का डेटा अभी जीएसटी डेस्क में उपलब्ध नहीं है। आप कह सकते हैं, डिलीवरी समरी बताओ।'),
+};
+
+const GenericBusinessHandler = {
+  // All new explicit intents and one AMAZON.SearchQuery-powered open question
+  // route through GST Desk without needing per-topic Alexa Lambda code changes.
+  canHandle: input => Alexa.getRequestType(input.requestEnvelope) === 'IntentRequest',
+  async handle(input) {
+    const intentName = Alexa.getIntentName(input.requestEnvelope);
+    const question = intentName === 'BusinessQueryIntent'
+      ? Alexa.getSlotValue(input.requestEnvelope, 'question') || ''
+      : '';
+    try {
+      const answer = await getBusinessAnswer(intentName, question);
+      return say(input, answer.spokenText);
+    } catch {
+      return say(input, 'अभी जीएसटी डेस्क का सुरक्षित डेटा कनेक्शन उपलब्ध नहीं है।');
+    }
+  },
 };
 
 const UnhandledHandler = {
@@ -204,8 +344,9 @@ const internalHandler = Alexa.SkillBuilders.custom()
   .withSkillId(process.env.ALEXA_SKILL_ID || 'amzn1.ask.skill.UNCONFIGURED')
   .addRequestHandlers(
     LaunchHandler, DraftCountHandler, StatusHandler, TodayMeeshoOrdersHandler, PendingDeliveriesHandler,
-    VerifiedDeliveredHandler, VerifiedTransitHandler, LastDeliveryDateHandler, UpdateDeliveryStatusHandler, HelpHandler,
-    StopHandler, FallbackHandler, UnhandledHandler)
+    VerifiedDeliveredHandler, VerifiedTransitHandler, AwaitingAwbHandler, ReturnedOrdersHandler,
+    DeliveryOverviewHandler, LastDeliveryDateHandler, UpdateDeliveryStatusHandler, HelpHandler,
+    StopHandler, FallbackHandler, GenericBusinessHandler, UnhandledHandler)
   .addErrorHandlers(ErrorHandler)
   .lambda();
 
