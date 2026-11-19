@@ -181,7 +181,7 @@ test('Lambda routes flexible future requests through read-only backend', () => {
 
 test('Alexa answers common questions about its actual capabilities and access', async () => {
   const expected = [
-    ['CapabilitiesIntent','रीड ओनली'],
+    ['CapabilitiesIntent','जीएसटी डेस्क के सुरक्षित रिकॉर्ड'],
     ['AccessScopeIntent','रीड ओनली'],
     ['DataAvailabilityIntent','24'],
     ['QuestionExamplesIntent','कितने पार्सल डिलीवर'],
