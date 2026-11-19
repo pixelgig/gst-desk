@@ -177,7 +177,7 @@ The table below is mutable latest-state guidance; details must also appear in th
 | Last verified prod browser | Not verified during this documentation-only task |
 | Open risks/blockers | Alexa-hosted skill ID/account secret configuration not yet verified; latest 62-intent model and generic Lambda not imported/built in Amazon; staging external HTTPS URL intentionally disabled; authenticated post-deploy POST /api/voice/query and physical Echo unverified; no live Meesho feed; shared-speaker privacy |
 | Next recommended action | Verify Alexa-hosted private configuration approach (no standard custom env-variable editor), extract skill/application ID and allowed user ID privately from simulator JSON, then implement a protected credential store and narrowly scoped HTTPS endpoint; test auth before Echo |
-| Latest ledger checkpoint | EVT-20261119-016 (capabilities utterance attempted in simulator; intent recognition unverified) |
+| Latest ledger checkpoint | EVT-20261119-017 (Alexa Hindi Store Preview saved, validation warnings unresolved) |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -489,3 +489,13 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 - **Verification state:** Amazon model build previously succeeded, endpoint launch guard already verified, but **capabilities intent classification unverified**. No live D1 access, secure credential setup or real Echo operation established.
 - **Changes:** No application code, Alexa configuration or Cloudflare deployment changed in this checkpoint. `AGENTS.md` on `main` updated to preserve the observed user test, uncertainty and next action.
 - **Next handoff:** Ask owner to expand/scroll JSON Input 1 and report the `request.type` and `request.intent.name` for this exact utterance; if recognized as `CapabilitiesIntent`, proceed to secure Alexa-hosted credentials and narrowly scoped HTTPS access; otherwise diagnose recognition without re-uploading files without evidence.
+
+### EVT-20261119-017 — ALEXA-001 — Hindi Store Preview saved; certification validation incomplete
+- **Date:** 2026-11-19 Asia/Kolkata; owner-screen activity, not independently time-stamped.
+- **AI identity recording checkpoint:** OpenAI / ChatGPT, GPT-6; actual Alexa UI actions performed by owner.
+- **Before:** Alexa Hindi interaction model built successfully, Lambda deployed, developer simulator responded with expected `configured()` guard. Secure Cloudflare-to-Alexa credentials and network route remained unconfigured; no public certification.
+- **Observed:** Owner opened Distribution → Skill Preview → Hindi (IN), entered listing information and clicked Save. Screenshot explicitly shows green “Saved Successfully” and red “Check Preview Errors: There are errors found in the Skill preview form...”. This confirms store-preview **save**, but not clean preview validation, certification submission or public publishing.
+- **Prior release attempt:** An assisted cloud-browser publishing attempt could not enter GST Desk skill because Amazon sign-in approval expired; **no promotion, certification submission or public release occurred**. Owner later continued manually.
+- **Remaining validation:** Inspect red/invalid fields on the current Hindi listing, including one-sentence and detailed descriptions, example utterances, category, mandatory 108×108 and 512×512 icons, and other required fields. The earlier screenshot showed placeholder descriptions and “hello”; do not assert those remain unresolved without a fresh form view. Avoid representing the private Alexa voice data connection as live: `GST_DESK_VOICE_API_URL`/token/account config and external HTTPS access are still unverified.
+- **Change type / deployment:** Documentation-only checkpoint in `AGENTS.md`. No Alexa model/code changes by AI, no Cloudflare/GitHub app source or D1 changes; no claim of a live skill.
+- **Next handoff:** Owner fixes current red Store Preview field errors and saves; verify Privacy & Compliance and Availability declarations, then Certification → Validation. Certification likely blocked by missing functional private voice configuration; don't ask to re-upload working Alexa files.
