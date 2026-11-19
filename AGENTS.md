@@ -152,8 +152,8 @@ This is the **editable summary** of current tasks. Append-only event history liv
 | **SETTLE-001** | P2 | Real marketplace fees/refunds/settlement and paid-versus-invoiced reconciliation | QUEUED | NOT_APPLICABLE | NOT_RUN | Depends on actual statements and costs |
 | **ORDER-001** | P2 | Determine legitimate Meesho order source; design notification intake | BLOCKED | NOT_APPLICABLE | NOT_RUN | No confirmed seller webhook/API yet |
 | **ALEXA-001** | P3 | Configure and test Hindi read-only skill with authorized owner Echo | QUEUED | NOT_APPLICABLE | NOT_RUN | Requires Alexa/Amazon configuration; no fake live metrics |
-| **ALEXA-002** | P3 | Match Alexa saved shipment breakdown to Valmo, add Hindi delivery/returned/AWB commands | SOURCE_DONE | DEPLOYED_VERIFIED_VERSION | SOURCE_TESTED | ChatGPT / GPT-6; staging Worker v8 live, [draft PR #3](https://github.com/pixelgig/gst-desk/pull/3) unmerged; Amazon sync pending |
-| **ALEXA-003** | P3 | Preconfigure broad Hindi GST Desk questions with backend-only metric upgrades | SOURCE_DONE | DEPLOYED_VERIFIED_VERSION | SOURCE_TESTED | GPT-6; 52 custom intents/230 samples in GitHub PR #3, generic API deployed to staging v9; Amazon build and Echo pending |
+| **ALEXA-002** | P3 | Match Alexa saved shipment breakdown to Valmo, add Hindi delivery/returned/AWB commands | SOURCE_DONE | DEPLOYED_VERIFIED_VERSION | SOURCE_TESTED | ChatGPT / GPT-6; integrated into main by [merged PR #3](https://github.com/pixelgig/gst-desk/pull/3); staging enhanced to v9; Amazon sync pending |
+| **ALEXA-003** | P3 | Preconfigure broad Hindi GST Desk questions with backend-only metric upgrades | SOURCE_DONE | DEPLOYED_VERIFIED_VERSION | SOURCE_TESTED | GPT-6; 52 custom intents/230 samples in main, generic API staged v9; Amazon build and Echo pending |
 
 **Task IDs are stable, not counters to overwrite.** New tasks use a concise category prefix (e.g. `UI-002`, `LIST-003`, `BUG-001`, `DEPLOY-001`). Do not recycle an ID after completion or cancellation. A major task can have child IDs (`LIST-001A`, `LIST-001B`) with a clear parent. Multiple agents must check latest file before reserving an ID.
 
@@ -167,16 +167,16 @@ The table below is mutable latest-state guidance; details must also appear in th
 
 | Field | Current value |
 | --- | --- |
-| Active owner task | ALEXA-003: 52 custom intents / 230 utterances source-tested; generic Cloudflare question API staged v9, Amazon model/handler sync pending |
+| Active owner task | ALEXA-003 source merged into main and staging Worker v9 deployed; Alexa-hosted model/handler, authorized route and real Echo still pending |
 | Current agent | OpenAI / ChatGPT; model GPT-6; Alexa broad voice model + protected staging v9 deployment |
-| Branch / expected base | `feature/alexa-shipment-breakdown-20261119` off `main`; re-fetch HEAD before further edits |
-| Work-in-progress PRs/branches | [Draft PR #3](https://github.com/pixelgig/gst-desk/pull/3) Alexa shipment breakdown |
+| Branch / expected base | `main` following merged PR #3; always re-fetch HEAD before future work |
+| Work-in-progress PRs/branches | PR #3 merged to main (commit `25732203adcd3add061bf2ed5f8aa7cbb7a03d19`); check for new competing PRs before edits |
 | Uncommitted edits | Unknown outside current GitHub connector session |
-| Last completed task | DOC-001; ALEXA-002 source commit(s) in PR #3, deployment/acceptance pending |
+| Last completed task | ALEXA-003: broad source/CI and Cloudflare staging v9 deployed and merged to main; Amazon integration remains pending |
 | Last verified prod browser | Not verified during this documentation-only task |
 | Open risks/blockers | Alexa-hosted secrets/skill account not configured; latest 52-intent Hindi model and Lambda not imported/built in Amazon; staging external HTTPS URL intentionally disabled; authenticated POST /api/voice/query + physical Echo unverified; no live Meesho feed; no shared-speaker identity verification |
 | Next recommended action | Merge PR #3 after CI; one-time import latest hi-IN.json and index.js into Alexa; establish supported secret-config method, secure Access-scoped HTTPS route; test authorized POST/GET and Echo; future data readers can change backend alone |
-| Latest ledger checkpoint | EVT-20261119-006 (ALEXA-003 staging v9), draft PR #3 |
+| Latest ledger checkpoint | EVT-20261119-007 (PR #3 merged to main), Amazon integration pending |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -372,3 +372,17 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 - **Known limitations:** Cloudflare private workers.dev route still disabled, so Amazon has no public HTTPS path; Amazon-hosted secure environment setup and skill/account authorization remain incomplete; device not tested; user-directed consumer Alexa account cannot prove specific household speaker. Data from browser localStorage remains unavailable to D1 until migrated; real-time Meesho events unconnected.
 - **Rollback:** Cloudflare staging rollback to prior v8 `4a152e7a-c1ad-4327-ada4-c0493d590d55` after verifying secrets/version compatibility; PR revert for source; D1 unaffected. Never deploy sanitized `worker.template.js` over real Access JWT Worker.
 - **Next handoff:** ALEXA-001/ALEXA-003 — merge source/history into `main` after checks, then one-time Amazon Build JSON update and Lambda deployment, choose supported Alexa secret configuration and narrowly scoped HTTPS Access, test no-token 401 + owner POST 200 + unknown metric unavailable + real Echo Hindi; document each action with a new append-only event.
+
+### EVT-20261119-007 — ALEXA-002/ALEXA-003 — Merge tested Alexa source and history into main
+- **Date/time:** 2026-11-19 Asia/Kolkata (date only; exact clock time not independently captured).
+- **AI identity:** OpenAI / ChatGPT; **model GPT-6**; execution context: GitHub connector, owner-requested Alexa project work and change-ledger continuity.
+- **Trigger:** Owner explicitly required all GST Desk changes by any AI to be recorded in the main branch's `AGENTS.md`, not stranded in a temporary branch.
+- **Before:** EVT-20261119-003 through 006 documented shipping summary and broad voice-model work on `feature/alexa-shipment-breakdown-20261119`; draft PR #3 had not been merged. GitHub Alexa CI on commit `223f93ab7488732b161b025938419a016534e1d7` was completed/success (run `44433165433`).
+- **After:** Marked PR #3 ready for review and successfully **merged** into `main`, merge commit [`25732203adcd3add061bf2ed5f8aa7cbb7a03d19`](https://github.com/pixelgig/gst-desk/commit/25732203adcd3add061bf2ed5f8aa7cbb7a03d19). All source model, lambda handler, voice summary/query route reference, tests, the voice question catalogue, `brain.md`, and prior AGENTS history from PR #3 are now on canonical branch. This event corrects handoff status; no additional Worker deployment or D1 change is implied by the merge.
+- **Work/delivery/verification:** SOURCE_DONE; COMMITTED_ONLY for this ledger maintenance commit; SOURCE_TESTED by earlier Alexa workflow; separate Cloudflare staging v9 deployed/verified as documented in EVT-006. Alexa console/physical Echo remain NOT_RUN for the new interaction model.
+- **Files:** `AGENTS.md` task board, current handoff, this append-only event; project files merged from PR #3 as documented in EVT-003 through EVT-006.
+- **Deployment/data:** No new application deployment triggered by this GitHub merge; the main `gst-desk-preview` production Worker and D1 remain untouched. Cloudflare's `gst-desk-api-staging` v9 remains distinct.
+- **Security and cost:** No new paid resource or credentials in GitHub; allowlisted aggregate-only read-model and encrypted voice secret bindings; staging public URL remains intentionally disabled. User showed a fragment of the real token in an earlier screenshot: recommend rotation before enabling a private external route.
+- **Known gaps:** Amazon has NOT yet built the 52-custom-intent Hindi model or deployed the new generic Lambda handler. A production-safe method to store Alexa-hosted secrets, scoped Cloudflare external access and end-to-end Echo acceptance remain unverified. 230 sample phrases improve coverage but do not guarantee unlimited speech recognition.
+- **Rollback:** Git revert of PR merge for source; Cloudflare staging rollback independently to v8 if needed; no DB rollback relevant.
+- **Next handoff:** Continue ALEXA-001: import `main/integrations/alexa/interaction-models/hi-IN.json` in existing Amazon Hindi Skill Build editor; build model and resolve Amazon validation errors; update Lambda handler; configure supported private credentials, Access-scoped HTTPS route, and test owner authorized POST/GET, unsupported-topic fallback and Echo. Append new evt after each follow-up task.
