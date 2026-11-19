@@ -82,6 +82,16 @@ Added Hindi intents: `DeliveryOverviewIntent`, `AwaitingAwbIntent`, `ReturnedOrd
 
 These are **aggregate-only household-safe answers**. Listing exact order references, customer names, shipping addresses or financial details over a shared household Echo needs additional voice authorization/privacy design; no such details are disclosed by this change. The Alexa developer console must be synchronized with updated `index.js` and `hi-IN.json` and redeployed separately. The staging Worker must also receive the tested new `voice-summary.mjs` while preserving the existing owner's Access JWT checks and D1/secret bindings. GitHub commits alone update neither platform.
 
+## ALEXA-003: broad Hindi interaction model and backend-only upgrades
+
+See the detailed [voice question catalogue](./alexa-question-catalog.md). Our source now includes **52 custom business intents**, including **40 planned business topics**, **230 Hindi sample utterances**, and `BusinessQueryIntent` with a single `AMAZON.SearchQuery` slot. This is a broad interface, **not literally unlimited recognition**; Amazon must still build/validate the model.
+
+The Lambda handler includes `GenericBusinessHandler` for future topics and uses Node.js 16-compatible HTTPS to send recognized intent names and the optionally captured question to **`POST /api/voice/query`**. This read-only endpoint performs the same owner/membership/bearer checks as the summary endpoint and returns `{readOnly,available,spokenText}`. When a requested metric is not in trustworthy D1, it answers **"इस सवाल का डेटा अभी जीएसटी डेस्क में उपलब्ध नहीं है।"** It never guesses zeros, invents a live marketplace feed, executes voice-selected SQL, writes financial/shipping data, or returns buyer/order-identifying information.
+
+**Future change principle:** When a new authorized metric becomes available, update the Cloudflare D1 read model and deterministic voice dispatcher. The existing Alexa code need not be edited for every metric if the intent was already registered or matched through the flexible query. For entirely new voice patterns, locales, Alexa API permissions, or endpoint changes, Amazon may still require a model rebuild and code deployment. Github source changes do not automatically deploy to Alexa.
+
+**Release status:** The earlier saved-shipment summary was deployed as Cloudflare staging v8. The new **ALEXA-003 voice question endpoint and expanded model** are not considered active until the new staging version and Amazon model/Lambda are independently deployed and verified. The production GST Desk Worker remains separate.
+
 ## Backend prerequisites — do NOT deploy the sanitized snapshot blindly
 
 1. Verify the *actual* staging Worker deployment, routing, and bindings. The checked-in
@@ -98,11 +108,8 @@ These are **aggregate-only household-safe answers**. Listing exact order referen
 5. If Cloudflare Access protects the API route, configure a **scoped service token**
    policy for the voice client. Do **not** broadly bypass Access for the whole API.
    Worker bearer-token validation is still mandatory and independently enforced.
-6. Bundle the ESM import `./voice-summary.mjs` with Wrangler when preparing the
-   staging deployment. The current repository's root `wrangler.jsonc` targets
-   `gst-desk-preview`, **not** the staging API. Do not use it to deploy this feature.
-7. Validate in staging (401 without token, 403 for unauthorized membership, 200 for
-   allowed owner). Do not copy private customer data into test responses.
+6. The GitHub staging reference imports `voice-summary.mjs`, but the existing deployed Cloudflare editor uses the same module code as `voice-summary.js`. Preserve the actual current `worker.js` and update its imported voice module with explicit `/api/voice/query` routing. Do not blindly deploy the sanitized template. The repository's root `wrangler.jsonc` targets **production `gst-desk-preview`**, not staging.
+7. Validate both endpoints in staging (401 without token, 403 for unauthorized membership, 405 for unsafe method, 200 for allowed owner). Ensure unsupported topics reply unavailable and no buyer records enter voice responses.
 
 ## Alexa setup — required Amazon-hosted skill endpoint
 
@@ -132,9 +139,9 @@ These are **aggregate-only household-safe answers**. Listing exact order referen
 
 - Requests are restricted to the configured Alexa skill and account user ID.
   **Alexa account user ID does not authenticate which household member is speaking.**
-  The initial feature therefore exposes only an aggregate draft count. Do not add
+  The initial feature therefore exposes only aggregate draft and shipment counts. Do not add
   customer details, payment values, profit, or tax amounts without a separate
-  strong authorization step such as a secure phone confirmation/account linking.
+  strong authorization step such as secure phone confirmation/account linking.
 - The backend checks a separate bearer token, active owner membership, and a fixed
   business ID. Responses are `no-store` and contain no names or invoice values.
 - Amazon's skill endpoint must validate request authenticity/skill ID. Use Amazon's
