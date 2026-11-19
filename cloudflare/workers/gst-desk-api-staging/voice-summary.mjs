@@ -103,7 +103,13 @@ export function answerSavedVoiceMetric(intentName, question, data) {
   // Recognize common paraphrases only for metrics actually backed by D1.
   // A free-form phrase is not an authorization to return private per-order details.
   const inferred = intentName === 'BusinessQueryIntent'
-    ? (/ए डब्ल्यू बी|एडब्ल्यूबी|awb|ट्रैकिंग नंबर/.test(q) ? 'AwaitingAwbIntent'
+    ? (/तुम क्या|क्या कर सकती|क्या कर सकते|क्षमताएं|क्षमता|काम में मदद|सुविधाएं|फीचर/.test(q) ? 'CapabilitiesIntent'
+      : /एक्सेस|परमिशन|अनुमति|एडिट|रिकॉर्ड बदल|डेटा बदल|रिकॉर्ड डिलीट/.test(q) ? 'AccessScopeIntent'
+      : /कौन सा डेटा|कौन कौन सा डेटा|क्या डेटा|किस चीज.*जानकारी|डेटा उपलब्ध|डाटाबेस में|तुम्हारे पास.*डेटा|कौन सी रिपोर्ट/.test(q) ? 'DataAvailabilityIntent'
+      : /क्या पूछ|कैसे सवाल|उदाहरण|कमांड|सवाल बता/.test(q) ? 'QuestionExamplesIntent'
+      : /लाइव|रियल टाइम|आखिरी.*सिंक|कब अपडेट|कितनी नई|आज का डेटा/.test(q) ? 'DataFreshnessIntent'
+      : /प्राइवेट|सुरक्षित|गोपनीय|ग्राहक.*नाम|ग्राहक.*पता|डेटा.*किसको/.test(q) ? 'PrivacySafetyIntent'
+      : /ए डब्ल्यू बी|एडब्ल्यूबी|awb|ट्रैकिंग नंबर/.test(q) ? 'AwaitingAwbIntent'
       : /रिटर्न|वापस|लौट/.test(q) ? 'ReturnedOrdersIntent'
       : /ट्रांजिट|रास्ते में|डिस्पैच हो गए|आउट फॉर डिलीवरी/.test(q) ? 'VerifiedTransitIntent'
       : /डिलीवर|डिलीवरी हो गई|पहुंच गए|पहुँच गए/.test(q) ? 'VerifiedDeliveredIntent'
@@ -112,6 +118,46 @@ export function answerSavedVoiceMetric(intentName, question, data) {
       : null)
     : intentName;
   const answer = text => ({available:true,spokenText:text});
+  // These introspective answers describe only this Alexa integration,
+  // not every feature of the much larger GST Desk web application.
+  if (inferred === 'CapabilitiesIntent') {
+    const supported = [];
+    if (available.shipmentBreakdown === true) {
+      supported.push('डिलीवरी, रास्ते में, बिना ए डब्ल्यू बी और रिटर्न पार्सल की संख्या');
+    }
+    if (available.drafts === true) supported.push('ड्राफ्ट चालानों की संख्या');
+    return answer(supported.length
+      ? 'मैं जीएसटी डेस्क के सुरक्षित रिकॉर्ड से ' + supported.join(' और ') +
+        ' बता सकती हूँ। नए ऑर्डर का लाइव डेटा, रिकॉर्ड बदलना या जीएसटी रिटर्न फाइल करना अभी संभव नहीं है।'
+      : 'मैं जीएसटी डेस्क के सवाल पहचान सकती हूँ, लेकिन अभी कोई सत्यापित बिजनेस डेटा नहीं जुड़ा है।');
+  }
+  if (inferred === 'AccessScopeIntent') {
+    return answer('मुझे केवल अधिकृत बिजनेस के कुछ सेव किए गए रिकॉर्ड की रीड ओनली समरी पढ़ने की अनुमति है। मैं रिकॉर्ड बदल, डिलीट या जमा नहीं कर सकती और ग्राहक का नाम या पता नहीं सुनाती।');
+  }
+  if (inferred === 'DataAvailabilityIntent') {
+    const hasDrafts = available.drafts === true && Number.isSafeInteger(data?.drafts?.count);
+    const hasShipments = available.shipmentBreakdown === true &&
+      Number.isSafeInteger(d.knownInvoicedOrders);
+    const parts = [];
+    if (hasShipments) parts.push(d.knownInvoicedOrders + ' सेव किए गए शिपमेंट रिकॉर्ड की समरी');
+    if (hasDrafts) parts.push(data.drafts.count + ' ड्राफ्ट चालानों की गिनती');
+    if (!parts.length) return {available:false,spokenText:unavailableSpeech};
+    const live = available.ordersToday === true
+      ? 'आज के ऑर्डर का डेटा भी कनेक्ट है।'
+      : 'मीशो के लाइव ऑर्डर, प्रॉफिट और जीएसटी देनदारी की वॉइस जानकारी अभी उपलब्ध नहीं है।';
+    return answer('अभी मेरे पास ' + parts.join(' और ') + ' उपलब्ध है। ' + live);
+  }
+  if (inferred === 'QuestionExamplesIntent') {
+    return answer('आप पूछ सकते हैं, कितने पार्सल डिलीवर हुए? कितने रास्ते में हैं? कितने रिटर्न हुए? कौन से डेटा उपलब्ध हैं? और मेरा एक्सेस क्या है?');
+  }
+  if (inferred === 'DataFreshnessIntent') {
+    return answer(available.ordersToday === true
+      ? 'कुछ डेटा कनेक्ट है, लेकिन सभी स्रोतों का लाइव होना सत्यापित नहीं है। जो जानकारी उपलब्ध नहीं होगी, वह साफ बताऊँगी।'
+      : 'मैं जीएसटी डेस्क के सेव किए गए रिकॉर्ड से जवाब देती हूँ। मीशो से लाइव ऑर्डर सिंक अभी नहीं जुड़ा है, इसलिए इस समय के ऑर्डर की संख्या नहीं बता सकती।');
+  }
+  if (inferred === 'PrivacySafetyIntent') {
+    return answer('एलेक्सा साझा स्पीकर हो सकता है, इसलिए मैं ग्राहक का नाम, पता और निजी ऑर्डर नंबर नहीं सुनाती। मैं केवल अधिकृत बिजनेस के सीमित आंकड़े पढ़ती हूँ, रिकॉर्ड बदलती नहीं हूँ।');
+  }
   if (inferred === 'UpdateDeliveryStatusIntent') {
     return {available:false,spokenText:'एलेक्सा से शिपमेंट का लाइव अपडेट चालू नहीं है। जीएसटी डेस्क के चेक स्टेटस बटन का इस्तेमाल करें।'};
   }

@@ -9,7 +9,7 @@
 - Protected backend: [voice-summary.mjs](../../cloudflare/workers/gst-desk-api-staging/voice-summary.mjs)
 - Invocation: **जीएसटी डेस्क** for a private Custom Skill; supported Routines/name-free entry are not guaranteed.
 - Broad sample utterances cover the old 11 business intents plus **40 additional topic intents**; a dedicated `BusinessQueryIntent` has exactly one `AMAZON.SearchQuery` slot named `question` (Hindi-IN supported), with required carrier phrases such as `मुझे {question} के बारे में बताओ`.
-- Total source model at ALEXA-003 drafting: 56 intents including four built-in intents, 52 custom intents, and 230 sample utterances. Changes must be validated in Amazon's Hindi interaction-model builder.
+- Total source model at ALEXA-003 drafting: 56 intents including four built-in intents, 58 custom intents, and 322 sample utterances. Changes must be validated in Amazon's Hindi interaction-model builder.
 
 ## Questions that can use today's saved D1 data
 
@@ -43,6 +43,23 @@ Known historical D1 snapshot (2026-11-19, *not* persistent constants): 24 candid
 **Owner operations:** business overview, notifications, reminders and saved status.
 
 Currently unimplemented data must be reported as **unavailable**, not as zero. Invoice metadata is not a new-order feed; GST computed totals are not filed returns; owner-checked delivery isn't carrier proof.
+
+## GST Desk voice self-knowledge: frequently asked questions (ALEXA-004)
+
+Six first-class Hindi intents are now included in the interaction model. They answer questions about Alexa's real **current read-only integration**, not the complete capabilities of the GST Desk website:
+
+| Intent | Examples | Safely grounded answer |
+|---|---|---|
+| `CapabilitiesIntent` | "जीएसटी डेस्क में तुम क्या कर सकती हो", "तुम मेरे लिए क्या कर सकती हो" | Saved shipment and draft counts (only where flags confirm availability); no writes, filing or live orders |
+| `AccessScopeIntent` | "तुम्हारे पास क्या एक्सेस है", "क्या तुम रिकॉर्ड बदल सकती हो" | Authorized owner aggregate summary only; cannot change, delete, submit or disclose customer details |
+| `DataAvailabilityIntent` | "तुम्हारे पास कौन कौन सा डेटा है", "अभी कौन सा डेटा उपलब्ध है" | Current authorized D1 shipment-record and draft-count availability (not an assertion of real-time Meesho access) |
+| `QuestionExamplesIntent` | "मैं तुमसे क्या पूछ सकता हूं", "कमांड के उदाहरण दो" | Examples of confirmed and read-only voice questions |
+| `DataFreshnessIntent` | "क्या तुम्हारा डेटा लाइव है", "आखिरी बार डेटा कब सिंक हुआ" | Truthfully distinguish saved D1 records from absent live Meesho sync |
+| `PrivacySafetyIntent` | "क्या मेरा डेटा सुरक्षित है", "क्या तुम ग्राहक के पते बता सकती हो" | No customer names/addresses/individual order details spoken on shared Echo |
+
+Each intent has multiple Hindi examples; `BusinessQueryIntent` also recognizes some common paraphrases through its open question slot. Answers originate in the same authorized backend query dispatcher. An unavailable feature does not become available by adding a sample phrase.
+
+**Model repair:** ALEXA-003's first generated model accidentally contained **single Hindi characters** as some utterance samples. The ALEXA-004 patch replaced all 40 affected future-topic samples with complete natural Hindi phrases and added a regression test to reject short/single-character samples. **Do not import any older 230-phrase version into Amazon.** Current validated source model has **62 intents (58 custom + 4 standard), 322 unique complete phrases**; Amazon model Build and on-Echo testing are still separate requirements.
 
 ## Flexible voice question
 

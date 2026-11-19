@@ -82,9 +82,15 @@ Added Hindi intents: `DeliveryOverviewIntent`, `AwaitingAwbIntent`, `ReturnedOrd
 
 These are **aggregate-only household-safe answers**. Listing exact order references, customer names, shipping addresses or financial details over a shared household Echo needs additional voice authorization/privacy design; no such details are disclosed by this change. The Alexa developer console must be synchronized with updated `index.js` and `hi-IN.json` and redeployed separately. The staging Worker must also receive the tested new `voice-summary.mjs` while preserving the existing owner's Access JWT checks and D1/secret bindings. GitHub commits alone update neither platform.
 
+## ALEXA-004: capabilities, permissions and data-awareness questions
+
+The broader interaction model now additionally recognizes **CapabilitiesIntent**, **AccessScopeIntent**, **DataAvailabilityIntent**, **QuestionExamplesIntent**, **DataFreshnessIntent** and **PrivacySafetyIntent**, including variants of "तुम क्या कर सकती हो?", "तुम्हारे पास क्या एक्सेस है?" and "तुम्हारे पास कौन सा डेटा है?". Backend answers are based on explicitly available D1 metrics/flags and clear read-only security limits. The previous interaction model's defective single-character samples were also repaired; use the updated `main/integrations/alexa/interaction-models/hi-IN.json` only after model build validation. See [the question catalogue](./alexa-question-catalog.md).
+
+**Release boundary:** These six new backend answers were deployed to **Cloudflare staging Worker v10** (`e8f9b7a8-b23e-498f-9038-0734d16e65f4`) at 100% traffic, preserving all three secrets and D1 binding; public Worker URLs remained disabled. New Amazon JSON/model and Lambda deployment have **not** been validated and the actual Echo has not been tested.
+
 ## ALEXA-003: broad Hindi interaction model and backend-only upgrades
 
-See the detailed [voice question catalogue](./alexa-question-catalog.md). Our source now includes **52 custom business intents**, including **40 planned business topics**, **230 Hindi sample utterances**, and `BusinessQueryIntent` with a single `AMAZON.SearchQuery` slot. This is a broad interface, **not literally unlimited recognition**; Amazon must still build/validate the model.
+See the detailed [voice question catalogue](./alexa-question-catalog.md). Our source now includes **58 custom business intents**, including **40 planned business topics**, **322 Hindi sample utterances**, and `BusinessQueryIntent` with a single `AMAZON.SearchQuery` slot. This is a broad interface, **not literally unlimited recognition**; Amazon must still build/validate the model.
 
 The Lambda handler includes `GenericBusinessHandler` for future topics and uses Node.js 16-compatible HTTPS to send recognized intent names and the optionally captured question to **`POST /api/voice/query`**. This read-only endpoint performs the same owner/membership/bearer checks as the summary endpoint and returns `{readOnly,available,spokenText}`. When a requested metric is not in trustworthy D1, it answers **"इस सवाल का डेटा अभी जीएसटी डेस्क में उपलब्ध नहीं है।"** It never guesses zeros, invents a live marketplace feed, executes voice-selected SQL, writes financial/shipping data, or returns buyer/order-identifying information.
 
