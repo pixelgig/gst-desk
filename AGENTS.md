@@ -138,7 +138,7 @@ This table can be corrected as new source evidence emerges. Record any correctio
 
 This is the **editable summary** of current tasks. Append-only event history lives in §9 and must never be erased. When making a change, update a row **and** add the relevant event. Work on the owner's latest explicit request first.
 
-**Currently assigned task:** ALEXA-001 Amazon Hindi model successfully built and Alexa-hosted Lambda last-deployed timestamp observed on owner's Code screenshot. Simulator and secure Cloudflare connectivity still unverified.
+**Currently assigned task:** ALEXA-001 Amazon Hindi model built, Lambda deployed, and LaunchRequest simulator confirmed. Private Alexa-to-Cloudflare credentials and endpoint remain unconfigured; no D1 voice data connected yet.
 
 | TASK-ID | Priority | Work item / acceptance target | Work | Delivery | Verification | Last owner / next step |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -168,7 +168,7 @@ The table below is mutable latest-state guidance; details must also appear in th
 
 | Field | Current value |
 | --- | --- |
-| Active owner task | ALEXA-001: owner confirmed both files uploaded; Alexa Code shows index.js and Last Deployed 2026-11-19 06:48 AM; Hindi model build successful at 06:50 AM; simulator test next |
+| Active owner task | ALEXA-001: Development simulator successfully invokes GST Desk and returns 'voice connection not configured'; private client credentials/route configuration is next |
 | Current agent | OpenAI / ChatGPT; model GPT-6; Alexa self-knowledge question additions and model-quality repair |
 | Branch / expected base | `main` following merged PR #4; always re-fetch HEAD before future work |
 | Work-in-progress PRs/branches | PR #3 and PR #4 merged to main; recheck fresh branches/PRs before edits |
@@ -176,8 +176,8 @@ The table below is mutable latest-state guidance; details must also appear in th
 | Last completed task | ALEXA-004: 6 Alexa self-knowledge intents, malformed phrase repair, staging v10, main merge; Amazon sync still pending |
 | Last verified prod browser | Not verified during this documentation-only task |
 | Open risks/blockers | Alexa-hosted skill ID/account secret configuration not yet verified; latest 62-intent model and generic Lambda not imported/built in Amazon; staging external HTTPS URL intentionally disabled; authenticated post-deploy POST /api/voice/query and physical Echo unverified; no live Meesho feed; shared-speaker privacy |
-| Next recommended action | Do NOT ask owner to re-upload files. Open Alexa Test -> Development -> Hindi (IN), invoke 'जीएसटी डेस्क खोलो'; record actual simulator response; then configure private credentials and scoped HTTPS route |
-| Latest ledger checkpoint | EVT-20261119-013 (owner Alexa Lambda deployed screenshot; simulator pending) |
+| Next recommended action | Preserve functioning Alexa code/model; design Alexa-hosted secure credential configuration and a narrow HTTPS route to staging Cloudflare; verify 401 without token and 200 with owner token before Echo tests. Avoid publishing any bearer token or deploying production Worker |
+| Latest ledger checkpoint | EVT-20261119-014 (Alexa simulator launch verified; credentials still missing) |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -461,3 +461,14 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 - **Affected surfaces:** Existing Amazon Alexa GST Desk skill, Code -> `lambda/index.js` and Build History. No code edits, Cloudflare changes, D1 writes or migrations in this correction; only `AGENTS.md` ledger updated on `main`.
 - **Security/cost:** Keep bearer token and owner IDs out of GitHub and screenshots; staging external URL still disabled pending scoped authentication. No new cost.
 - **Next handoff:** Go to Alexa Test -> Development -> Hindi (IN), type `जीएसटी डेस्क खोलो`, capture the actual spoken/text response. Avoid re-uploading `index.js` without a new code change. Log that result separately.
+
+### EVT-20261119-014 — ALEXA-001 — Live Alexa development simulator launch verified
+- **Date/time:** 2026-11-19 Asia/Kolkata; screenshot time not independently established.
+- **AI identity logging the checkpoint:** OpenAI / ChatGPT, GPT-6. Amazon UI test performed by owner.
+- **Trigger:** Owner sent Alexa Developer Console → Test (Development, Hindi IN) screenshot after earlier successful Build Model and Lambda deployment.
+- **Observed result:** Simulator accepted the user's phrase “जीएसटी डेस्क खोलो” and skill output displayed “जीएसटी डेस्क का वॉइस कनेक्शन अभी सेट नहीं हुआ है।” An Alexa speech JSON response is visible. This confirms the invocation route and Lambda launch handler execute; it does **not** establish a Cloudflare connection or correct recognition of all 322 samples.
+- **Why connection not yet configured:** Current Alexa Lambda source `configured()` requires `ALEXA_SKILL_ID`, `ALEXA_ALLOWED_USER_ID`, `GST_DESK_VOICE_API_URL`, `GST_DESK_VOICE_API_TOKEN`. Skill is Alexa-hosted and custom runtime values have not been securely installed. Private staging Worker `workers.dev` is disabled, and authorized remote voice calls have not yet been tested. Do not claim Amazon → Cloudflare communication.
+- **Work/delivery/verification:** Owner action verified at simulator level (LaunchRequest). ALEXA-001 remains IN_PROGRESS; security/configuration pending. No GitHub source, D1 rows, Worker routes or production app changed in this checkpoint.
+- **Secure configuration research:** Amazon documentation confirms Alexa-hosted skill resources include an AWS-managed encrypted-at-rest S3 bucket with IAM GetObject permission and DynamoDB; Node.js Alexa-hosted runtime may be 16.x. The S3 Media folder is for media and not a dedicated secrets manager. Before choosing S3-based private configuration or migrating to a self-hosted Lambda, assess IAM exposure, permissions and code compatibility. Do not upload the bearer token to a publicly readable S3 object or GitHub file. Prior screenshots showed a partial live token: rotate before external exposure.
+- **Relevant reference:** `integrations/alexa/lambda/index.js`, `docs/integrations/alexa-hindi.md`, `brain.md`. Previous staging Worker v10 and preserved D1/secret bindings unchanged.
+- **Next handoff:** Select a supported secure hosting/configuration method for Alexa-hosted runtime, then configure private secrets and a least-privilege Cloudflare HTTPS route. Validate unauthenticated 401, authorized owner 200 and unavailable-data fallback. Keep consumer Alexa shared-speaker privacy limits.
