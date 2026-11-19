@@ -1,6 +1,6 @@
 # Hindi Alexa voice access — GST Desk (existing project)
 
-**Status (19 November 2026):** A protected read-only voice route was confirmed deployed on `gst-desk-api-staging` and returned an authenticated D1 JSON summary during owner testing. The Alexa-hosted handler has not yet been configured to call it successfully; the physical Echo remains unverified. Shipment-breakdown enhancements are source-only until separately deployed.
+**Status (19 November 2026):** A protected read-only voice route was confirmed deployed on `gst-desk-api-staging` and returned an authenticated D1 JSON summary during owner testing. The Alexa-hosted handler has not yet been configured to call it successfully; the physical Echo remains unverified. Shipment-breakdown enhancements are now deployed to **gst-desk-api-staging** as Worker version 8 (ID `4a152e7a-c1ad-4327-ada4-c0493d590d55`, verified 100% staging traffic); the main GST Desk Worker was not touched. The Alexa-hosted handler/model still require synchronization and secure configuration.
 The live app remains https://gst.nividhi.in. This is a feature of the existing
 `pixelgig/gst-desk` repository, not a new GST application, tenant database, or server.
 
