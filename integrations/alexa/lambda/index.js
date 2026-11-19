@@ -57,7 +57,7 @@ const isIntent = name => input => Alexa.getRequestType(input.requestEnvelope) ==
 const LaunchHandler = {
   canHandle: input => Alexa.getRequestType(input.requestEnvelope) === 'LaunchRequest',
   handle: input => say(input,
-    'नमस्ते, जीएसटी डेस्क तैयार है। आप पूछ सकते हैं, कितने ड्राफ्ट चालान हैं, या सिस्टम की स्थिति क्या है?',
+    'नमस्ते, जीएसटी डेस्क तैयार है। आप डिलीवर, रास्ते में, ए डब्ल्यू बी नहीं मिले, और रिटर्न पार्सल की संख्या पूछ सकते हैं।',
     'क्या आप ड्राफ्ट चालानों की संख्या जानना चाहेंगे?'),
 };
 
@@ -94,13 +94,16 @@ const PendingDeliveriesHandler = {
   canHandle: isIntent('PendingDeliveriesIntent'),
   async handle(input) {
     try {
-      const data = await getSummary();
-      if (data.availableMetrics?.pendingDeliveries === true &&
-          Number.isSafeInteger(data.orders?.pendingDeliveries) && data.orders.pendingDeliveries >= 0) {
-        return say(input, 'मीशो के ' + data.orders.pendingDeliveries + ' ऑर्डर अभी डिलीवर होने बाकी हैं।');
+      const d = await getSummary();
+      if (d.availableMetrics?.shipmentBreakdown === true &&
+          Number.isSafeInteger(d.delivery?.verifiedInTransit) &&
+          Number.isSafeInteger(d.delivery?.awaitingAwb)) {
+        return say(input, 'जीएसटी डेस्क के सेव किए गए रिकॉर्ड में ' +
+          d.delivery.verifiedInTransit + ' पार्सल रास्ते में हैं और ' +
+          d.delivery.awaitingAwb + ' की ए डब्ल्यू बी दर्ज नहीं है। यह लाइव मीशो ऑर्डर की गिनती नहीं है।');
       }
     } catch {}
-    return say(input, 'डिलीवरी की ताज़ा स्थिति अभी जीएसटी डेस्क से सिंक नहीं हुई है। इसलिए पेंडिंग ऑर्डर की संख्या नहीं बता सकती।');
+    return say(input, 'अभी सेव किए गए शिपमेंट की जानकारी उपलब्ध नहीं है। लाइव मीशो ऑर्डर सिंक भी कनेक्ट नहीं है।');
   },
 };
 
@@ -109,15 +112,20 @@ const VerifiedDeliveredHandler = {
   async handle(input) {
     try {
       const d = await getSummary();
-      if (d.availableMetrics?.verifiedDeliveries === true &&
-          Number.isSafeInteger(d.delivery?.verifiedDelivered)) {
-        return say(input, 'जिन ऑर्डर का रिकॉर्ड जीएसटी डेस्क में है, उनमें ' +
-          d.delivery.verifiedDelivered + ' डिलीवरी की पुष्टि हो चुकी है। बाकी ऑर्डर की स्थिति अभी सत्यापित नहीं है।');
+      if (d.availableMetrics?.shipmentBreakdown === true &&
+          Number.isSafeInteger(d.delivery?.totalDelivered) &&
+          Number.isSafeInteger(d.delivery?.verifiedDelivered) &&
+          Number.isSafeInteger(d.delivery?.ownerConfirmedDelivered)) {
+        return say(input, 'जीएसटी डेस्क के रिकॉर्ड में कुल ' +
+          d.delivery.totalDelivered + ' पार्सल डिलीवर दर्ज हैं। इनमें ' +
+          d.delivery.verifiedDelivered + ' कैरियर द्वारा और ' +
+          d.delivery.ownerConfirmedDelivered + ' आपके द्वारा कन्फर्म किए गए हैं।');
       }
     } catch {}
-    return say(input, 'डिलीवरी की पुष्टि वाला डेटाबेस अभी एलेक्सा से कनेक्ट नहीं है।');
+    return say(input, 'डिलीवरी की पुष्टि वाला रिकॉर्ड अभी उपलब्ध नहीं है।');
   },
 };
+
 const VerifiedTransitHandler = {
   canHandle: isIntent('VerifiedTransitIntent'),
   async handle(input) {
@@ -132,6 +140,56 @@ const VerifiedTransitHandler = {
     return say(input, 'अभी ट्रांजिट का सत्यापित रिकॉर्ड उपलब्ध नहीं है।');
   },
 };
+const AwaitingAwbHandler = {
+  canHandle: isIntent('AwaitingAwbIntent'),
+  async handle(input) {
+    try {
+      const d = await getSummary();
+      if (d.availableMetrics?.shipmentBreakdown === true &&
+          Number.isSafeInteger(d.delivery?.awaitingAwb)) {
+        return say(input, 'जीएसटी डेस्क के ' + d.delivery.awaitingAwb +
+          ' शिपमेंट में ए डब्ल्यू बी दर्ज नहीं है। उनकी डिलीवरी स्थिति की पुष्टि नहीं हुई है।');
+      }
+    } catch {}
+    return say(input, 'बिना ए डब्ल्यू बी वाले शिपमेंट की संख्या अभी उपलब्ध नहीं है।');
+  },
+};
+
+const ReturnedOrdersHandler = {
+  canHandle: isIntent('ReturnedOrdersIntent'),
+  async handle(input) {
+    try {
+      const d = await getSummary();
+      if (d.availableMetrics?.shipmentBreakdown === true &&
+          Number.isSafeInteger(d.delivery?.returned)) {
+        return say(input, 'जीएसटी डेस्क में ' + d.delivery.returned +
+          ' शिपमेंट रिटर्न दर्ज है।');
+      }
+    } catch {}
+    return say(input, 'रिटर्न हुए शिपमेंट का रिकॉर्ड अभी उपलब्ध नहीं है।');
+  },
+};
+
+const DeliveryOverviewHandler = {
+  canHandle: isIntent('DeliveryOverviewIntent'),
+  async handle(input) {
+    try {
+      const d = await getSummary();
+      const v = d.delivery || {};
+      if (d.availableMetrics?.shipmentBreakdown === true &&
+          ['totalDelivered','verifiedInTransit','awaitingAwb','returned']
+            .every(k => Number.isSafeInteger(v[k]) && v[k] >= 0)) {
+        return say(input, 'सेव किए गए शिपमेंट रिकॉर्ड के अनुसार, ' +
+          v.totalDelivered + ' डिलीवर हैं, ' +
+          v.verifiedInTransit + ' रास्ते में हैं, ' +
+          v.awaitingAwb + ' की ए डब्ल्यू बी उपलब्ध नहीं है, और ' +
+          v.returned + ' रिटर्न है। यह लाइव मीशो डेटा नहीं है।');
+      }
+    } catch {}
+    return say(input, 'अभी पूरी डिलीवरी समरी उपलब्ध नहीं है।');
+  },
+};
+
 const LastDeliveryDateHandler = {
   canHandle: isIntent('LastDeliveryDateIntent'),
   async handle(input) {
@@ -163,7 +221,7 @@ const StatusHandler = {
   async handle(input) {
     try {
       await getSummary();
-      return say(input, 'जीएसटी डेस्क का वॉइस कनेक्शन काम कर रहा है। ड्राफ्ट चालानों की जानकारी उपलब्ध है।');
+      return say(input, 'जीएसटी डेस्क का वॉइस कनेक्शन काम कर रहा है। सेव किए गए डिलीवरी रिकॉर्ड उपलब्ध हैं।');
     } catch {
       return say(input, 'जीएसटी डेस्क का डेटा कनेक्शन अभी उपलब्ध नहीं है।');
     }
@@ -173,7 +231,7 @@ const StatusHandler = {
 const HelpHandler = {
   canHandle: isIntent('AMAZON.HelpIntent'),
   handle: input => say(input,
-    'अभी आप ड्राफ्ट चालान, आज के मीशो ऑर्डर, और पेंडिंग डिलीवरी के बारे में पूछ सकते हैं। जिन रिकॉर्ड का डेटा सिंक नहीं हुआ है, उनकी संख्या अभी उपलब्ध नहीं होगी।',
+    'आप पूछ सकते हैं कितने डिलीवर हुए, कितने रास्ते में हैं, कितने की ए डब्ल्यू बी नहीं मिली, और कितने रिटर्न हुए। लाइव मीशो ऑर्डर का डेटा अभी उपलब्ध नहीं है।',
     'क्या आप ड्राफ्ट चालानों की संख्या जानना चाहेंगे?'),
 };
 
@@ -186,7 +244,7 @@ const StopHandler = {
 const FallbackHandler = {
   canHandle: isIntent('AMAZON.FallbackIntent'),
   handle: input => say(input,
-    'आप मुझसे आज के मीशो ऑर्डर, पेंडिंग डिलीवरी और ड्राफ्ट चालानों के बारे में पूछ सकते हैं।',
+    'आप मुझसे सेव किए गए डिलीवरी, ट्रांजिट, रिटर्न और ए डब्ल्यू बी वाले शिपमेंट की समरी पूछ सकते हैं।',
     'ड्राफ्ट चालान कितने हैं?'),
 };
 
@@ -204,7 +262,8 @@ const internalHandler = Alexa.SkillBuilders.custom()
   .withSkillId(process.env.ALEXA_SKILL_ID || 'amzn1.ask.skill.UNCONFIGURED')
   .addRequestHandlers(
     LaunchHandler, DraftCountHandler, StatusHandler, TodayMeeshoOrdersHandler, PendingDeliveriesHandler,
-    VerifiedDeliveredHandler, VerifiedTransitHandler, LastDeliveryDateHandler, UpdateDeliveryStatusHandler, HelpHandler,
+    VerifiedDeliveredHandler, VerifiedTransitHandler, AwaitingAwbHandler, ReturnedOrdersHandler,
+    DeliveryOverviewHandler, LastDeliveryDateHandler, UpdateDeliveryStatusHandler, HelpHandler,
     StopHandler, FallbackHandler, UnhandledHandler)
   .addErrorHandlers(ErrorHandler)
   .lambda();
