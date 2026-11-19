@@ -177,7 +177,7 @@ The table below is mutable latest-state guidance; details must also appear in th
 | Last verified prod browser | Not verified during this documentation-only task |
 | Open risks/blockers | Alexa-hosted skill ID/account secret configuration not yet verified; latest 62-intent model and generic Lambda not imported/built in Amazon; staging external HTTPS URL intentionally disabled; authenticated post-deploy POST /api/voice/query and physical Echo unverified; no live Meesho feed; shared-speaker privacy |
 | Next recommended action | Verify Alexa-hosted private configuration approach (no standard custom env-variable editor), extract skill/application ID and allowed user ID privately from simulator JSON, then implement a protected credential store and narrowly scoped HTTPS endpoint; test auth before Echo |
-| Latest ledger checkpoint | EVT-20261119-015 (security-guard distinction and private configuration research; Alexa connection pending) |
+| Latest ledger checkpoint | EVT-20261119-016 (capabilities utterance attempted in simulator; intent recognition unverified) |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -480,3 +480,12 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 - **Next dependency:** Private Alexa skill/application ID and allowed Alexa user ID available in simulator JSON Input must be fixed and validated; endpoint must be reachable over HTTPS under separate bearer and/or Cloudflare Access credentials, with least-privilege route; current staging `workers.dev` remains disabled. No credentials have been configured or connectivity established in this step.
 - **Work/delivery/verification:** Documentation clarification only; no Alexa file redeployment, no Cloudflare Worker change, no D1 writes, no new cost. Prior Cloudflare staging v10 and existing main source unchanged.
 - **Next handoff:** Collect IDs privately without pasting bearer tokens or entire request envelopes. Implement/review durable private config (e.g., verified private S3 read where allowed) in a tested future source patch; validate no-token 401, authorized owner 200 and unavailable-data fallback, then test normal Alexa intent handlers and real Echo. Keep shared-speaker privacy in scope.
+
+### EVT-20261119-016 — ALEXA-001 — Capabilities utterance simulator check (intent pending)
+- **Date/time:** 2026-11-19 Asia/Kolkata; owner screenshot timestamp not independently verified.
+- **Recorder:** OpenAI / ChatGPT, GPT-6. Simulator action performed by owner.
+- **Trigger:** Owner tested the phrase “जीएसटी डेस्क से पूछो तुम क्या कर सकती हो” in the existing Alexa Developer Console Development simulator.
+- **Observed:** The skill returned “जीएसटी डेस्क का वॉइस कनेक्शन अभी सेट नहीं हुआ है।” This is consistent with the top-level `configured()` guard returning before intent dispatch; it does **not** prove whether `CapabilitiesIntent` was recognized. The screenshot shows only the top of JSON Input, not the `request.intent.name` field.
+- **Verification state:** Amazon model build previously succeeded, endpoint launch guard already verified, but **capabilities intent classification unverified**. No live D1 access, secure credential setup or real Echo operation established.
+- **Changes:** No application code, Alexa configuration or Cloudflare deployment changed in this checkpoint. `AGENTS.md` on `main` updated to preserve the observed user test, uncertainty and next action.
+- **Next handoff:** Ask owner to expand/scroll JSON Input 1 and report the `request.type` and `request.intent.name` for this exact utterance; if recognized as `CapabilitiesIntent`, proceed to secure Alexa-hosted credentials and narrowly scoped HTTPS access; otherwise diagnose recognition without re-uploading files without evidence.
