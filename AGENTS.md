@@ -154,7 +154,7 @@ This is the **editable summary** of current tasks. Append-only event history liv
 | **ALEXA-001** | P3 | Configure and test Hindi read-only skill with authorized owner Echo | QUEUED | NOT_APPLICABLE | NOT_RUN | Requires Alexa/Amazon configuration; no fake live metrics |
 | **ALEXA-002** | P3 | Match Alexa saved shipment breakdown to Valmo, add Hindi delivery/returned/AWB commands | SOURCE_DONE | DEPLOYED_VERIFIED_VERSION | SOURCE_TESTED | ChatGPT / GPT-6; integrated into main by [merged PR #3](https://github.com/pixelgig/gst-desk/pull/3); staging enhanced to v9; Amazon sync pending |
 | **ALEXA-003** | P3 | Preconfigure broad Hindi GST Desk questions with backend-only metric upgrades | SOURCE_DONE | DEPLOYED_VERIFIED_VERSION | SOURCE_TESTED | GPT-6; staging generic API v9, earlier 230-sample source superseded by ALEXA-004 malformed-sample repair; Amazon build pending |
-| **ALEXA-004** | P3 | Hindi Alexa self-knowledge: capabilities, access, data availability, privacy, and valid phrase quality | SOURCE_DONE | PR_OPEN | NOT_RUN | GPT-6; 6 self-knowledge intents, 40 future-topic phrase repairs, 62 intents/322 complete utterances; tests/deploy pending |
+| **ALEXA-004** | P3 | Hindi Alexa self-knowledge: capabilities, access, data availability, privacy, and valid phrase quality | SOURCE_DONE | DEPLOYED_VERIFIED_VERSION | SOURCE_TESTED | GPT-6; staging Worker v10 verified, Alexa CI succeeded; 62 intents/322 complete phrases in PR #4; Amazon update pending |
 
 **Task IDs are stable, not counters to overwrite.** New tasks use a concise category prefix (e.g. `UI-002`, `LIST-003`, `BUG-001`, `DEPLOY-001`). Do not recycle an ID after completion or cancellation. A major task can have child IDs (`LIST-001A`, `LIST-001B`) with a clear parent. Multiple agents must check latest file before reserving an ID.
 
@@ -168,16 +168,16 @@ The table below is mutable latest-state guidance; details must also appear in th
 
 | Field | Current value |
 | --- | --- |
-| Active owner task | ALEXA-004: six Alexa self-knowledge intents + corrected natural Hindi samples are being validated; older 230-sample model contained single-character defects |
+| Active owner task | ALEXA-004: 62-intent/322-phrase model source-tested; self-knowledge Cloudflare staging v10 deployed, Amazon skill update still pending |
 | Current agent | OpenAI / ChatGPT; model GPT-6; Alexa self-knowledge question additions and model-quality repair |
 | Branch / expected base | `main` following merged PR #3; always re-fetch HEAD before future work |
 | Work-in-progress PRs/branches | PR #3 merged to main (commit `25732203adcd3add061bf2ed5f8aa7cbb7a03d19`); check for new competing PRs before edits |
 | Uncommitted edits | Unknown outside current GitHub connector session |
 | Last completed task | ALEXA-003: broad source/CI and Cloudflare staging v9 deployed and merged to main; Amazon integration remains pending |
 | Last verified prod browser | Not verified during this documentation-only task |
-| Open risks/blockers | Alexa-hosted secrets/skill account not configured; latest 52-intent Hindi model and Lambda not imported/built in Amazon; staging external HTTPS URL intentionally disabled; authenticated POST /api/voice/query + physical Echo unverified; no live Meesho feed; no shared-speaker identity verification |
+| Open risks/blockers | Alexa-hosted skill ID/account secret configuration not yet verified; latest 62-intent model and generic Lambda not imported/built in Amazon; staging external HTTPS URL intentionally disabled; authenticated post-deploy POST /api/voice/query and physical Echo unverified; no live Meesho feed; shared-speaker privacy |
 | Next recommended action | Validate ALEXA-004 voice CI and merge source; synchronize latest fixed 62-intent Alexa model in Amazon and stage introspection backend; configure secure route/credentials and test authorized Echo |
-| Latest ledger checkpoint | EVT-20261119-008 (ALEXA-004 source preparation), Amazon model and Echo pending |
+| Latest ledger checkpoint | EVT-20261119-009 (ALEXA-004 staging v10 and source CI), main merge and Amazon sync pending |
 
 **Do not forge locks:** this table is not a distributed lock. On concurrent work, prefer one branch/PR per agent/task; check open PRs and main before merge. Explicitly identify any shared source file edits and resolve them, not overwrite each other. The current agent value is historical once another starts.
 
@@ -401,3 +401,15 @@ To investigate older additions/removals, use the GitHub commit history and [brai
 - **Data/security/cost:** No database schema or record mutation, no additional paid services, no customer names/addresses/PII spoken. Existing production Worker `gst-desk-preview` untouched. Secrets kept only in Cloudflare bindings, never in GitHub.
 - **Release boundary/rollback:** Later staging Worker deployment must explicitly retain original Access-protected entrypoint, D1 and secret bindings. GitHub source branch can be reverted independently; Amazon Skill still uses its previously uploaded interaction model until separately replaced. Do not import the old malformed 230-phrase model.
 - **Next handoff:** Run GitHub Alexa CI, correct any failures, merge into `main`, deploy tested voice module to staging if safe, then guide user to import the updated JSON in the existing Amazon developer skill and build it. Log every step and outcome as a new event, not a rewritten old event.
+
+### EVT-20261119-009 — ALEXA-004 — Verified source CI and Cloudflare staging v10
+- **Date/time:** 2026-11-19 Asia/Kolkata; exact local clock not independently captured.
+- **AI identity:** OpenAI / ChatGPT; model GPT-6; GitHub + Cloudflare connector task.
+- **Before:** ALEXA-004 self-knowledge changes were source-only on `feature/alexa-self-knowledge-hindi-20261119` (EVT-008); older staging v9 had the generic voice query endpoint but not the six introspective replies. Some former Hindi interaction-model samples were broken into single-character strings and the user had not yet installed the expanded model in Amazon.
+- **After:** Source CI [GST Desk Hindi Alexa checks](https://github.com/pixelgig/gst-desk/actions/runs/44434830336) completed successfully on PR #4; the interaction model now contains 62 intents, 58 custom and 4 built-in, with 322 unique complete Hindi phrases, a 40-category malformed-phrase repair and six self-knowledge intents. Cloudflare staging v10 **`e8f9b7a8-b23e-498f-9038-0734d16e65f4`** uploaded preserving original staging `worker.js`, and deployed at 100% traffic as **`aa16cc5f-2a7b-4a7b-810a-a3492de1c652`**. Verified version, deployed code presence and bindings from Cloudflare API: `DB` (D1) plus three secret_text bindings `VOICE_API_TOKEN`, `VOICE_BUSINESS_ID`, `VOICE_OWNER_EMAIL`; `workers.dev` and preview URLs remain disabled.
+- **Work/delivery/verification:** SOURCE_DONE; DEPLOYED_VERIFIED_VERSION for staging backend; SOURCE_TESTED for GitHub regression tests. **No** post-deployment authenticated HTTP POST or Amazon model build/real Echo test.
+- **Affected files:** `cloudflare/workers/gst-desk-api-staging/voice-summary.mjs` and staged imported `voice-summary.js`; `integrations/alexa/interaction-models/hi-IN.json`, tests, `docs/integrations/alexa-hindi.md`, `docs/integrations/alexa-question-catalog.md`, `brain.md`, `AGENTS.md`.
+- **Evidence/PR:** [PR #4](https://github.com/pixelgig/gst-desk/pull/4), source CI success, checked deployed bindings and Worker route via connected Cloudflare. Production `gst-desk-preview` was not deployed or changed.
+- **Security/data/cost:** No D1 writes or migrations; no paid service; no secrets in code; restricted aggregate read-only responses; Alexa account and speaker identity restrictions unchanged. Older token was partially visible in a user screenshot; rotation is recommended before exposing any external route.
+- **Rollback:** Restore staging v9 `2e921df2-8dfd-4e91-b2d9-0e46e800b76c` only after checking secret changes, revert ALEXA-004 source PR if needed; no D1 rollback.
+- **Next handoff:** Merge tested PR #4 into main and update this ledger to confirm. Then owner imports fixed 62-intent `hi-IN.json` into existing Amazon skill, performs Save Model/Build Model, and deploys current Lambda; solve secure Alexa-to-Cloudflare networking and record actual tests. **Do not use old malformed 230-sample model.**
