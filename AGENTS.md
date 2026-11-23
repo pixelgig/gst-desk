@@ -1,5 +1,7 @@
 # GST Desk / NIVIDHI — AI Mission Control & Change Ledger
 
+> **2026-11-23 cost guardrail checkpoint (Draft PR #6):** R2 subscription activated but account has no bucket and production has no R2 binding; R2 still NOT safe to use until atomic server-side D1 metering and full R2 operation coverage are live. A Cloudflare $0.10 projected-spend email alert is active; Telegram relay source/tests are draft only, with no bot secrets, deployment, webhook registration or delivered messages. See `docs/operations/cost-guardrails-telegram.md`. Never claim an 8 GB app cap guarantees a $0 invoice.
+
 > **ROOT-LEVEL AI WORKING INSTRUCTIONS — READ BEFORE ANY CODE CHANGE.**  
 > This file is the **living mission, task board, AI handover and append-only change journal** for the existing GST Desk / NIVIDHI e-commerce project.  
 > **Knowledge counterpart:** [brain.md](./brain.md) — comprehensive product, business, architecture, file/function map, schema, risks and roadmap.  
