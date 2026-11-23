@@ -1,5 +1,7 @@
 # GST Desk / NIVIDHI — Project Brain and AI Handover Manual
 
+> **2026-11-23 cost guardrail checkpoint (Draft PR #6):** Owner now permits Cloudflare R2 Standard storage for private original files only under conservative ₹0-use guardrails. No bucket exists yet; live R2 quotas and Telegram alerts are not deployed. $0.10 Cloudflare account budget email alert is active, not a hard cap. See `docs/operations/cost-guardrails-telegram.md` for current gates and Draft PR #6 for unmerged implementation.
+
 ## Contents / fast navigation
 
 | Foundation and code | Operations and workflows | Governance and future |
