@@ -1,0 +1,24 @@
+name: GST Desk Phase 0 regression contract tests
+on:
+  pull_request:
+    paths:
+      - 'tests/regression-contracts.test.mjs'
+      - '.github/workflows/regression-contracts.yml'
+      - 'cloudflare/workers/gst-desk-preview/**'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/regression-contracts.test.mjs'
+      - '.github/workflows/regression-contracts.yml'
+      - 'cloudflare/workers/gst-desk-preview/**'
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/regression-contracts.test.mjs
