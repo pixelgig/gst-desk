@@ -25,7 +25,7 @@ test('webhook rejects unauthenticated requests and missing secrets', async () =>
 });
 test('webhook sends only after authentication to two configured chat ids', async () => {
   const calls = [];
-  const handler = createHandler(async (url, init) => { calls.push({ url, body: JSON.parse(init.body) }); return new Response('OK', { status: 200 }); });
+  const handler = createHandler(async (url, init) => { calls.push({ url, body: JSON.parse(init.body) }); return Response.json({ ok: true, result: { message_id: 123 } }, { status: 200 }); });
   const env = { CLOUDFLARE_WEBHOOK_SECRET: 'secret-value', TELEGRAM_BOT_TOKEN: 'token', TELEGRAM_CHAT_IDS: '1234,5678' };
   const request = new Request('https://alerts.example/cloudflare-budget', { method: 'POST', headers: { 'cf-webhook-auth': 'secret-value' }, body: JSON.stringify({ name: 'Budget alert', description: 'Projected spend crossed threshold' }) });
   assert.equal((await handler(request, env)).status, 200);
@@ -39,4 +39,30 @@ test('webhook handles malformed and oversized payloads', async () => {
   const request = new Request('https://alerts.example/cloudflare-budget', { method: 'POST', headers: { 'cf-webhook-auth': 'secret-value' }, body: '{invalid' });
   assert.equal((await handler(request, env)).status, 400);
   assert.match(formatCloudflareAlert({ name: 'B' }), /Cloudflare billing/);
+});
+
+test('Cloudflare text field is displayed as plain, truncated text', () => {
+  const output = formatCloudflareAlert({ name: 'GST Desk', text: 'A'.repeat(800) });
+  assert.match(output, /Details: A{500}/);
+  assert.doesNotMatch(output, /A{501}/);
+});
+test('oversized chunked body fails with 413 without invoking Telegram', async () => {
+  const env = { CLOUDFLARE_WEBHOOK_SECRET: 'secret-value', TELEGRAM_BOT_TOKEN: 'token', TELEGRAM_CHAT_IDS: '1234' };
+  const handler = createHandler(async () => { throw new Error('unexpected_send'); });
+  const payload = JSON.stringify({ text: 'x'.repeat(17000) });
+  const request = new Request('https://alerts.example/cloudflare-budget', {
+    method: 'POST', headers: { 'cf-webhook-auth': 'secret-value' },
+    body: new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(payload)); c.close(); } }),
+    duplex: 'half'
+  });
+  assert.equal((await handler(request, env)).status, 413);
+});
+test('Telegram HTTP 200 with ok=false is not treated as delivered', async () => {
+  const env = { CLOUDFLARE_WEBHOOK_SECRET: 'secret-value', TELEGRAM_BOT_TOKEN: 'token', TELEGRAM_CHAT_IDS: '1234' };
+  const handler = createHandler(async () => Response.json({ ok: false }, { status: 200 }));
+  const request = new Request('https://alerts.example/cloudflare-budget', {
+    method: 'POST', headers: { 'cf-webhook-auth': 'secret-value' },
+    body: JSON.stringify({ text: 'test' })
+  });
+  assert.equal((await handler(request, env)).status, 502);
 });
