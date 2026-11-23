@@ -21,7 +21,7 @@ test('signed Access claims and business-scoped D1 membership remain mandatory', 
 });
 test('premium brand remains a link to home', () => {
   const theme=file('premium-theme.mjs');
-  assert.match(theme, /<a class=\\"app-brand\\" href=\\"\/\\"/);
+  assert.ok(theme.includes('<a class="app-brand" href="/"'));
   assert.match(theme, /return to homepage/);
 });
 test('Valmo UI retains independent uploader, review button, category cards and refresh', () => {
