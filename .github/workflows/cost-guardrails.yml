@@ -1,0 +1,28 @@
+name: GST Desk cost guardrails and Telegram relay checks
+on:
+  pull_request:
+    paths:
+      - 'cloudflare/workers/gst-desk-cost-alerts/**'
+      - 'tests/cost-guardrails.test.mjs'
+      - 'wrangler.cost-alerts.jsonc'
+      - '.github/workflows/cost-guardrails.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare/workers/gst-desk-cost-alerts/**'
+      - 'tests/cost-guardrails.test.mjs'
+      - 'wrangler.cost-alerts.jsonc'
+      - '.github/workflows/cost-guardrails.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check cloudflare/workers/gst-desk-cost-alerts/worker.mjs
+      - run: node --check cloudflare/workers/gst-desk-cost-alerts/r2-policy.mjs
+      - run: node --test tests/cost-guardrails.test.mjs
