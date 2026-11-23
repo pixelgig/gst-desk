@@ -1,6 +1,6 @@
 # GST Desk / NIVIDHI — Project Brain and AI Handover Manual
 
-> **2026-11-23 cost guardrail checkpoint (Draft PR #6):** Owner now permits Cloudflare R2 Standard storage for private original files only under conservative ₹0-use guardrails. No bucket exists yet; live R2 quotas are not deployed. A standalone Telegram relay Worker is deployed with webhook authentication secret but is not connected to Telegram; no notifications delivered. $0.10 Cloudflare account budget email alert is active, not a hard cap. See `docs/operations/cost-guardrails-telegram.md` for current gates and Draft PR #6 for unmerged implementation.
+> **2026-11-23 cost guardrail checkpoint (Draft PR #6):** Owner now permits Cloudflare R2 Standard storage for private original files only under conservative ₹0-use guardrails. No bucket exists yet; live R2 quotas are not deployed. A standalone Telegram billing relay Worker is deployed with three secret bindings and connected to the $0.10 billing policy as webhook, alongside email; Cloudflare test succeeded, but receipt by owner not independently confirmed. $0.10 Cloudflare account budget email alert is active, not a hard cap. See `docs/operations/cost-guardrails-telegram.md` for current gates and Draft PR #6 for unmerged implementation.
 
 ## Contents / fast navigation
 
