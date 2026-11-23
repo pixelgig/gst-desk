@@ -48,3 +48,11 @@ Unlike app-record warnings, Cloudflare budget alerts are calculated periodically
 ## AI change record
 
 - 2026-11-23: ChatGPT GPT-6; standalone Telegram relay, policy calculator and tests; CI passed. $0.10 account budget policy now has BOTH email and Telegram via webhook delivery. Deployed separate `gst-desk-cost-alerts` Worker and secured three bindings; Cloudflare automatic webhook test succeeded and its HTTP 200 means Telegram API accepted requests for every configured chat ID. User-visible receipt has not been independently confirmed. No R2 bucket, R2 quota enforcement or native billing spend-policy changes.
+
+## 2026-11-23 approved Gemini hardening (GPT-6)
+
+- Updated the relay source on this draft branch with bounded streaming JSON parsing (16,384 bytes), 500-character sanitized Cloudflare `text` field, fixed-width comparison, and confirmation of Telegram Bot API `ok: true`.
+- GitHub cost-guardrails workflow passed after these source/test updates. The **isolated** `gst-desk-cost-alerts` Worker was redeployed through Cloudflare API with `keep_bindings: ['secret_text']`; all three secret names were verified intact after deployment. No secret values were retrieved or printed.
+- Cloudflare accepted a fresh **test notification request** for the active $0.10 billing policy after redeployment. This confirms Cloudflare accepted the test invocation, **not** that the owner independently acknowledged the latest Telegram message. The owner explicitly confirmed receiving an earlier registration test message.
+- The production `gst-desk-preview` Worker and D1 records were not changed. R2 has no bucket. `r2-policy.mjs` is still a pure helper, not a live cost limiter.
+- GitHub source and live isolated Worker intentionally differ from `main` until Draft PR #6 is reviewed/merged. Do not overwrite the live Worker with older `main` source.
