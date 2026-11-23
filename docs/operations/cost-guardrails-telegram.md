@@ -1,11 +1,11 @@
 # GST Desk — zero-recurring-cost guardrails and Telegram alerts
 
-Status (2026-11-23): **proposal / not deployed**. The standalone webhook relay and pure policy helpers are in this branch. They are not wired to any active R2 operation and do not yet limit real usage. Do not claim Telegram notifications are active until a test alert is delivered to both owners.
+Status (2026-11-23): **standalone relay deployed but incomplete**. Worker `gst-desk-cost-alerts` is available at `https://gst-desk-cost-alerts.gstdesk-nividhi.workers.dev/cloudflare-budget` with a generated `CLOUDFLARE_WEBHOOK_SECRET` already saved as a Cloudflare secret. Telegram token and chat IDs are NOT set; Cloudflare refused webhook destination registration with HTTP 422 because its test returned HTTP 503. The R2 quota policy remains unintegrated and unenforced. Production GST Desk was not changed.
 
 ## Verified account facts
 
 - Cloudflare R2 subscription enabled; connected account currently has **zero buckets**. No R2 Worker binding is configured in production.
-- Cloudflare production Worker uses the existing D1 binding; no Telegram secrets exist in its listed bindings.
+- Cloudflare production Worker uses the existing D1 binding; the separate alert Worker now holds ONLY the Cloudflare webhook-authentication secret. Bot token and chat ID(s) must still be set there.
 - An account-level **US $0.10 projected spend email alert was created** on 2026-11-23. An earlier default $10 projected spend alert remains. These are notifications, not shutdowns.
 - Connected Cloudflare OAuth returns HTTP 403 for native Billing / Spend Policies APIs and usage APIs; do not misreport hard spend controls as configured.
 
@@ -28,8 +28,8 @@ Proposed flow: Cloudflare account budget notification -> **Cloudflare generic we
 
 1. In Telegram, create a bot with @BotFather and send it `/start` from each intended recipient account. Obtain each numeric chat ID via a trusted local Telegram Bot API `getUpdates` call.
 2. Do **not** share bot tokens, chat IDs, invoice data or webhook secrets in GitHub, issues, screenshots, public chat or source code.
-3. Deploy the isolated relay using `npx wrangler deploy -c wrangler.cost-alerts.jsonc` from a trusted environment, then set the secrets `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_IDS` (comma-separated, at most two), and `CLOUDFLARE_WEBHOOK_SECRET` using `npx wrangler secret put <NAME> -c wrangler.cost-alerts.jsonc` or equivalent authenticated dashboard controls.
-4. In Cloudflare Notifications, register a generic webhook destination for `https://<relay-worker-host>/cloudflare-budget` and set the same strong random webhook secret. Cloudflare dispatches that secret in the `cf-webhook-auth` header.
+3. The isolated Worker `gst-desk-cost-alerts` has ALREADY been deployed and its `CLOUDFLARE_WEBHOOK_SECRET` populated. **Do not redeploy before checking secret preservation.** In Cloudflare Dashboard > Workers & Pages > gst-desk-cost-alerts > Settings > Variables and Secrets, add ONLY `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_IDS` (comma-separated, at most two) as secret bindings.
+4. After the Telegram secrets are configured, ask the connected assistant to create the generic Cloudflare webhook destination using the **already-created secret binding**. The earlier registration attempt failed HTTP 422, since Cloudflare sends an automatic test POST and the destination responded HTTP 503 while Telegram was unconfigured. Cloudflare dispatches the same shared secret in `cf-webhook-auth`. If this stored secret is not recoverable, rotate the Worker secret and destination secret together in a single secured operation.
 5. Associate the webhook destination with the existing `$0.10` **billing_budget_alert** policy, leaving email as fallback. Test with Cloudflare's test notification capability if supported for this alert type; otherwise verify a real notification without intentionally incurring charges.
 6. Verify delivery, invalid-header rejection, no secret disclosure, optional second recipient, and emergency bot revocation.
 
@@ -47,4 +47,4 @@ Unlike app-record warnings, Cloudflare budget alerts are calculated periodically
 
 ## AI change record
 
-- 2026-11-23: ChatGPT GPT-6; added standalone authenticated Telegram relay, policy calculators and regression tests on a review branch. Created verified $0.10 email account budget alert. No production Worker deployment, R2 bucket creation, R2 quota enforcement, billing spend-policy change, or Telegram delivery claimed.
+- 2026-11-23: ChatGPT GPT-6; added standalone authenticated Telegram relay, policy calculators and regression tests on a review branch; CI passed. Created verified $0.10 email account budget alert. **Deployed separate `gst-desk-cost-alerts` Worker** (not GST Desk production), enabled workers.dev URL, and configured webhook-authentication secret. Cloudflare webhook registration failed HTTP 422 because Telegram token/chat IDs were not configured and live test returned HTTP 503. No R2 bucket, R2 quota enforcement, billing spend-policy change, or Telegram delivery claimed.
